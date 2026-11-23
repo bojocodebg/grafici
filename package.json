@@ -1,0 +1,21 @@
+{
+  "name": "puls-grafici",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Система за работни графици – Денонощни аптеки \"Пулс\"",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:init": "node scripts/init-db.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.18",
+    "mysql2": "^3.24.6",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "server-only": "^0.0.1"
+  }
+}
