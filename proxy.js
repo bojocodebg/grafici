@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySession } from './lib/session';
 
-export async function middleware(req) {
+// Next.js 16: "proxy" замества "middleware". Пренасочва неудостоверени потребители към /login.
+export async function proxy(req) {
   const { pathname } = req.nextUrl;
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (pathname.startsWith('/login')) {
