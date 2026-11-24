@@ -4,7 +4,15 @@ import { redirect } from 'next/navigation';
 import { requireUser, requirePermission, requireAdmin } from '@/lib/auth';
 import { query } from '@/lib/db';
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Приема гггг-мм-дд или дд.мм.гггг; връща гггг-мм-дд или null при невалидна дата
+function parseDate(v) {
+  let s = String(v || '').trim();
+  const bg = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s);
+  if (bg) s = `${bg[3]}-${bg[2]}-${bg[1]}`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d) && d.toISOString().slice(0, 10) === s ? s : null;
+}
 const back = (k, msg) => redirect('/zabelezhki?' + k + '=' + encodeURIComponent(msg));
 const refresh = () => { revalidatePath('/zabelezhki'); revalidatePath('/grafik'); };
 
@@ -13,10 +21,11 @@ const refresh = () => { revalidatePath('/zabelezhki'); revalidatePath('/grafik')
 export async function addNote(formData) {
   const user = await requireUser();
   const content = String(formData.get('content') || '').trim();
-  const date = String(formData.get('work_date') || '');
+  const date = parseDate(formData.get('work_date'));
+  if (!date) back('error', 'Изберете дата, за която се отнася забележката (дд.мм.гггг).');
   if (!content) back('error', 'Въведете текст на забележката.');
   if (content.length > 2000) back('error', 'Текстът е твърде дълъг (макс. 2000 знака).');
-  await query('INSERT INTO notes (user_id, work_date, content) VALUES (?,?,?)', [user.id, DATE_RE.test(date) ? date : null, content]);
+  await query('INSERT INTO notes (user_id, work_date, content) VALUES (?,?,?)', [user.id, date, content]);
   refresh();
   back('ok', 'Забележката е изпратена.');
 }
@@ -24,9 +33,10 @@ export async function addNote(formData) {
 export async function editNote(id, formData) {
   await requireAdmin();
   const content = String(formData.get('content') || '').trim();
-  const date = String(formData.get('work_date') || '');
+  const date = parseDate(formData.get('work_date'));
+  if (!date) back('error', 'Изберете валидна дата (дд.мм.гггг).');
   if (!content) back('error', 'Текстът на забележката не може да е празен.');
-  await query('UPDATE notes SET content = ?, work_date = ? WHERE id = ?', [content.slice(0, 2000), DATE_RE.test(date) ? date : null, id]);
+  await query('UPDATE notes SET content = ?, work_date = ? WHERE id = ?', [content.slice(0, 2000), date, id]);
   refresh();
   back('ok', 'Забележката е редактирана.');
 }

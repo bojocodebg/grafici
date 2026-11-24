@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 import { fmtDate, fmtDateTime } from '@/lib/dates';
 import Flash from '@/app/components/Flash';
 import SubmitButton from '@/app/components/SubmitButton';
+import DateInput from '@/app/components/DateInput';
 import { addLeave, reviewLeave, deleteLeave } from './actions';
 
 export const metadata = { title: 'Отпуски – Пулс' };
@@ -61,8 +62,8 @@ export default async function LeavePage({ searchParams }) {
               {Object.entries(TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </label>
-          <label>От дата<input type="date" name="date_from" required /></label>
-          <label>До дата<input type="date" name="date_to" required /></label>
+          <label>От дата<DateInput name="date_from" required /></label>
+          <label>До дата<DateInput name="date_to" required /></label>
           <label className="full">Причина / коментар<textarea name="reason" rows={2} maxLength={2000} /></label>
           <div className="full"><SubmitButton>Подай заявка</SubmitButton></div>
         </form>

@@ -28,7 +28,7 @@ export default async function SchedulePage({ searchParams }) {
 
   const shiftTypes = await query('SELECT * FROM shift_types WHERE active = 1 ORDER BY id');
 
-  let workers = [], shifts = [], leaves = [], notes = [];
+  let workers = [], shifts = [], leaves = [], notes = [], mgmtNotes = [];
   if (pharmacy) {
     workers = await query(
       `SELECT u.id, u.full_name, pos.name position FROM users u LEFT JOIN positions pos ON pos.id = u.position_id
@@ -54,6 +54,15 @@ export default async function SchedulePage({ searchParams }) {
         [ids, from, to]
       );
     }
+    // Забележки на администратори / потребители без аптека – виждат се в графика на всяка аптека
+    mgmtNotes = await query(
+      `SELECT n.id, n.work_date, n.content, n.reply, n.created_at, r.full_name replier, u.full_name author
+         FROM notes n JOIN users u ON u.id = n.user_id
+         LEFT JOIN users r ON r.id = n.replied_by
+        WHERE (u.is_admin = 1 OR u.pharmacy_id IS NULL) AND u.id NOT IN (?)
+          AND n.work_date BETWEEN ? AND ? ORDER BY n.created_at`,
+      [ids.length ? ids : [0], from, to]
+    );
   }
 
   const shiftMap = {};
@@ -65,6 +74,9 @@ export default async function SchedulePage({ searchParams }) {
   const noteMap = {};
   for (const n of notes) (noteMap[`${n.user_id}|${n.work_date}`] ??= []).push({
     id: n.id, content: n.content, reply: n.reply, replier: n.replier, created: n.created_at,
+  });
+  for (const n of mgmtNotes) (noteMap[`admin|${n.work_date}`] ??= []).push({
+    id: n.id, content: n.content, reply: n.reply, replier: n.replier, created: n.created_at, author: n.author,
   });
 
   // Личните смени на потребителя за месеца (във всички аптеки)

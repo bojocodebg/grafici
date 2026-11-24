@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { setShift, copyPreviousMonth, clearMonth } from './actions';
 
+const ADMIN_ROW = { id: 'admin', full_name: 'Администрация' };
+
 export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leaveMap, noteMap = {}, canEdit, currentUserId, pharmacyId, year, month, today }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -165,6 +167,28 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                   </tr>
                 );
               })}
+              {days.some((d) => noteMap[`admin|${d.date}`]) && (
+                <tr className="mgmt-row">
+                  <th className="sticky name">
+                    Администрация
+                    <small>забележки</small>
+                  </th>
+                  {days.map((d) => (
+                    <td key={d.date} className={`${d.weekend ? 'we' : ''} ${d.date === today ? 'today' : ''}`}>
+                      {noteMap[`admin|${d.date}`] && (
+                        <span
+                          className="note-dot"
+                          onMouseEnter={(e) => showTip(e, ADMIN_ROW, d)}
+                          onMouseLeave={hideTipSoon}
+                          onClick={(e) => { e.stopPropagation(); showTip(e, ADMIN_ROW, d); }}
+                          aria-label={`Забележки: ${noteMap[`admin|${d.date}`].length}`}
+                        />
+                      )}
+                    </td>
+                  ))}
+                  <td />
+                </tr>
+              )}
             </tbody>
             <tfoot>
               <tr>
@@ -206,6 +230,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
           </div>
           {tip.notes.map((n) => (
             <div key={n.id} className="note-tip-item">
+              {n.author && <small className="muted">{n.author}</small>}
               <p className="pre">{n.content}</p>
               {n.reply && <p className="pre reply-line"><b>{n.replier || 'Отговор'}:</b> {n.reply}</p>}
               <Link href={`/zabelezhki#note-${n.id}`}>Към забележката →</Link>

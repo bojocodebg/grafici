@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 import { fmtDate, fmtDateTime } from '@/lib/dates';
 import Flash from '@/app/components/Flash';
 import SubmitButton from '@/app/components/SubmitButton';
+import DateInput from '@/app/components/DateInput';
 import { addNote, editNote, deleteNote, replyNote, markSeen } from './actions';
 
 export const metadata = { title: 'Забележки – Пулс' };
@@ -54,11 +55,11 @@ export default async function NotesPage({ searchParams }) {
       <section className="card">
         <h2>Нова забележка</h2>
         <form action={addNote} className="form-grid">
-          <label>Отнася се за дата (по избор)<input type="date" name="work_date" defaultValue={/^\d{4}-\d{2}-\d{2}$/.test(sp.d || '') ? sp.d : undefined} /></label>
+          <label>Дата, за която се отнася *<DateInput name="work_date" required defaultValue={/^\d{4}-\d{2}-\d{2}$/.test(sp.d || '') ? sp.d : ''} /></label>
           <label className="full">Текст<textarea name="content" rows={3} maxLength={2000} required placeholder="Напр. „Моля за размяна на смяната на 12-ти с колега…“" /></label>
           <div className="full"><SubmitButton>Изпрати</SubmitButton></div>
         </form>
-        <p className="muted small">Забележките с дата се показват в графика с червена точка в съответния ден.</p>
+        <p className="muted small">Забележката се показва в графика с червена точка в избрания ден.</p>
       </section>
 
       <section className="card">
@@ -120,7 +121,7 @@ export default async function NotesPage({ searchParams }) {
                 <details className="edit-note">
                   <summary>Редактирай</summary>
                   <form action={editNote.bind(null, n.id)} className="form-grid">
-                    <label>Дата<input type="date" name="work_date" defaultValue={n.work_date || ''} /></label>
+                    <label>Дата *<DateInput name="work_date" required defaultValue={n.work_date || ''} /></label>
                     <label className="full">Текст<textarea name="content" rows={3} maxLength={2000} required defaultValue={n.content} /></label>
                     <div className="full"><SubmitButton className="btn sm primary">Запиши</SubmitButton></div>
                   </form>

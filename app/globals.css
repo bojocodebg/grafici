@@ -207,3 +207,12 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .edit-note form { margin-top: .5rem; }
 .small { font-size: .85rem; margin: .5rem 0 0; }
 @media print { .note-tip { display: none; } }
+
+/* Поле за дата дд.мм.гггг */
+.date-input { position: relative; display: flex; align-items: stretch; }
+.date-input input[type=text] { padding-right: 2.4rem; }
+.date-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--muted); cursor: pointer; padding: .3rem; border-radius: 6px; display: grid; place-items: center; }
+.date-btn:hover { background: var(--bg); color: var(--brand-dark); }
+.date-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+.sched tr.mgmt-row th.name { background: #fff6f6; color: #b71c1c; }
+.sched tr.mgmt-row td { height: 30px; background: #fffafa; }
