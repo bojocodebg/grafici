@@ -26,7 +26,7 @@ export default async function SchedulePage({ searchParams }) {
   if (!viewAll) pharmacyId = user.pharmacy_id;
   const pharmacy = pharmacies.find((p) => p.id === pharmacyId) || pharmacies[0];
 
-  const shiftTypes = await query('SELECT * FROM shift_types WHERE active = 1 ORDER BY id');
+  const shiftTypes = await query('SELECT * FROM shift_types WHERE active = 1 ORDER BY sort_order, id');
 
   let workers = [], shifts = [], leaves = [], notes = [], mgmtNotes = [];
   if (pharmacy) {

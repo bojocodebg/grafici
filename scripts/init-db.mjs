@@ -43,6 +43,11 @@ if (!(await hasCol('users', 'position_id'))) {
   await conn.query('ALTER TABLE users ADD CONSTRAINT fk_users_position FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE SET NULL');
   console.log('✔ Миграция: добавена колона users.position_id');
 }
+if (!(await hasCol('shift_types', 'sort_order'))) {
+  await conn.query('ALTER TABLE shift_types ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER color');
+  await conn.query('UPDATE shift_types SET sort_order = id'); // запазва досегашната подредба
+  console.log('✔ Миграция: добавена подредба (sort_order) на типовете смени');
+}
 if (await hasCol('users', 'position')) {
   // Старите текстови длъжности стават записи в таблицата "positions"
   await conn.query("INSERT IGNORE INTO positions (name) SELECT DISTINCT TRIM(position) FROM users WHERE position IS NOT NULL AND TRIM(position) <> ''");
@@ -72,12 +77,12 @@ if (posc === 0) {
 const [[{ c: sc }]] = await conn.query('SELECT COUNT(*) c FROM shift_types');
 if (sc === 0) {
   await conn.query(
-    `INSERT INTO shift_types (code, name, start_time, end_time, hours, color) VALUES
-     ('Д', 'Дневна смяна', '08:00', '20:00', 12, '#4caf50'),
-     ('Н', 'Нощна смяна', '20:00', '08:00', 12, '#3f51b5'),
-     ('С', 'Сутрешна смяна', '08:00', '16:00', 8, '#8bc34a'),
-     ('В', 'Вечерна смяна', '14:00', '22:00', 8, '#ff9800'),
-     ('П', 'Почивка', NULL, NULL, 0, '#9e9e9e')`
+    `INSERT INTO shift_types (code, name, start_time, end_time, hours, color, sort_order) VALUES
+     ('Д', 'Дневна смяна', '08:00', '20:00', 12, '#4caf50', 1),
+     ('Н', 'Нощна смяна', '20:00', '08:00', 12, '#3f51b5', 2),
+     ('С', 'Сутрешна смяна', '08:00', '16:00', 8, '#8bc34a', 3),
+     ('В', 'Вечерна смяна', '14:00', '22:00', 8, '#ff9800', 4),
+     ('П', 'Почивка', NULL, NULL, 0, '#9e9e9e', 5)`
   );
   console.log('✔ Добавени типове смени.');
 }

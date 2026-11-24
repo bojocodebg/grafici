@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS shift_types (
   end_time TIME NULL,
   hours DECIMAL(4,1) NOT NULL DEFAULT 0,
   color VARCHAR(7) NOT NULL DEFAULT '#4caf50',
+  sort_order INT NOT NULL DEFAULT 0,
   active TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

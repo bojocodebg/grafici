@@ -6,9 +6,10 @@ import { createShiftType, updateShiftType } from './actions';
 
 export const metadata = { title: 'Типове смени – Пулс' };
 
-function Fields({ t = {} }) {
+function Fields({ t = {}, nextOrder = 0 }) {
   return (
     <>
+      <label className="tiny" title="Индекс за подредба – по-малкото число е по-напред">ред<input name="sort_order" type="number" step="1" defaultValue={t.sort_order ?? nextOrder} className="w-num" /></label>
       <input name="code" defaultValue={t.code} placeholder="Код" maxLength={5} required className="w-code" />
       <input name="name" defaultValue={t.name} placeholder="Наименование *" required />
       <label className="tiny">от<input type="time" name="start_time" defaultValue={fmtTime(t.start_time)} /></label>
@@ -21,13 +22,14 @@ function Fields({ t = {} }) {
 
 export default async function ShiftTypesPage() {
   await requirePermission('pharmacies.manage');
-  const rows = await query('SELECT * FROM shift_types ORDER BY active DESC, id');
+  const rows = await query('SELECT * FROM shift_types ORDER BY active DESC, sort_order, id');
+  const nextOrder = rows.reduce((m, t) => Math.max(m, t.sort_order), 0) + 1;
   return (
     <div className="stack-lg">
-      <div className="page-head"><div><h1>Типове смени</h1><p className="muted">Използват се при попълване на графика. Неактивните не се предлагат за нови смени.</p></div></div>
+      <div className="page-head"><div><h1>Типове смени</h1><p className="muted">Използват се при попълване на графика. Неактивните не се предлагат за нови смени. Полето „ред“ определя подредбата в графика, легендата и обобщението на часовете (по-малкото число е по-напред).</p></div></div>
       <section className="card">
         <h2>Нов тип</h2>
-        <form action={createShiftType} className="row-form"><Fields /><SubmitButton>Добави</SubmitButton></form>
+        <form action={createShiftType} className="row-form"><Fields nextOrder={nextOrder} /><SubmitButton>Добави</SubmitButton></form>
       </section>
       <section className="card">
         <h2>Списък</h2>
