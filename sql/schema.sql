@@ -101,3 +101,23 @@ CREATE TABLE IF NOT EXISTS leave_requests (
   CONSTRAINT fk_leave_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_leave_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Журнал на действията (логове)
+CREATE TABLE IF NOT EXISTS audit_log (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id INT NULL,
+  username VARCHAR(60) NULL,
+  full_name VARCHAR(150) NULL,
+  action VARCHAR(20) NOT NULL,
+  entity VARCHAR(30) NOT NULL,
+  entity_id INT NULL,
+  summary VARCHAR(500) NOT NULL,
+  changes TEXT NULL,
+  ip VARCHAR(45) NULL,
+  user_agent VARCHAR(255) NULL,
+  KEY idx_audit_created (created_at),
+  KEY idx_audit_user (user_id, created_at),
+  KEY idx_audit_entity (entity, created_at),
+  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

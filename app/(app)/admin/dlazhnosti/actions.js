@@ -3,6 +3,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requirePermission } from '@/lib/auth';
 import { query } from '@/lib/db';
+import { audit, diff } from '@/lib/audit';
+
+const FIELDS = { name: 'Наименование', sort_order: 'Ред', active: 'Активна' };
 
 const PATH = '/admin/dlazhnosti';
 const go = (k, msg) => redirect(`${PATH}?${k}=${encodeURIComponent(msg)}`);
@@ -19,30 +22,36 @@ async function nameTaken(name, exceptId = 0) {
 }
 
 export async function createPosition(formData) {
-  await requirePermission('pharmacies.manage');
+  const user = await requirePermission('pharmacies.manage');
   const f = read(formData);
   if (!f.name) go('error', 'Въведете наименование.');
   if (await nameTaken(f.name)) go('error', `Длъжност „${f.name}“ вече съществува.`);
-  await query('INSERT INTO positions (name, sort_order, active) VALUES (?,?,1)', [f.name, f.sort_order]);
+  const res = await query('INSERT INTO positions (name, sort_order, active) VALUES (?,?,1)', [f.name, f.sort_order]);
+  await audit(user, 'create', 'position', res.insertId, `Добавена длъжност „${f.name}“`, diff({}, { ...f, active: 1 }, FIELDS));
   revalidatePath(PATH);
   go('ok', `Длъжността „${f.name}“ е добавена.`);
 }
 
 export async function updatePosition(id, formData) {
-  await requirePermission('pharmacies.manage');
+  const user = await requirePermission('pharmacies.manage');
   const f = read(formData);
   if (!f.name) go('error', 'Въведете наименование.');
   if (await nameTaken(f.name, id)) go('error', `Длъжност „${f.name}“ вече съществува.`);
+  const [old] = await query('SELECT * FROM positions WHERE id = ?', [id]);
+  const changes = diff(old, f, FIELDS);
+  if (Object.keys(changes).length) await audit(user, 'update', 'position', id, `Редактирана длъжност „${f.name}“`, changes);
   await query('UPDATE positions SET name = ?, sort_order = ?, active = ? WHERE id = ?', [f.name, f.sort_order, f.active, id]);
   revalidatePath(PATH);
   go('ok', 'Промените са записани.');
 }
 
 export async function deletePosition(id) {
-  await requirePermission('pharmacies.manage');
+  const user = await requirePermission('pharmacies.manage');
   const [{ c }] = await query('SELECT COUNT(*) c FROM users WHERE position_id = ?', [id]);
   if (c > 0) go('error', `Длъжността не може да бъде изтрита – използва се от ${c} потребител(и). Можете да я деактивирате.`);
+  const [old] = await query('SELECT name FROM positions WHERE id = ?', [id]);
   await query('DELETE FROM positions WHERE id = ?', [id]);
+  if (old) await audit(user, 'delete', 'position', id, `Изтрита длъжност „${old.name}“`);
   revalidatePath(PATH);
   go('ok', 'Длъжността е изтрита.');
 }

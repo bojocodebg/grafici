@@ -140,6 +140,7 @@ export default async function SchedulePage({ searchParams }) {
           <p className="muted">Нямате въведени смени за този месец.</p>
         ) : (
           <>
+            <div className="table-wrap">
             <table className="table cards">
               <thead><tr><th>Дата</th><th>Смяна</th><th>Час</th><th>Часове</th><th>Аптека</th></tr></thead>
               <tbody>
@@ -157,6 +158,7 @@ export default async function SchedulePage({ searchParams }) {
                 })}
               </tbody>
             </table>
+            </div>
             <p className="muted">Общо часове: <b>{myHours}</b></p>
           </>
         )}

@@ -3,10 +3,19 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireUser, requirePermission } from '@/lib/auth';
 import { query } from '@/lib/db';
-import { daysBetween } from '@/lib/dates';
+import { daysBetween, fmtDate } from '@/lib/dates';
+import { audit } from '@/lib/audit';
 
 const back = (k, msg) => redirect(`/otpuski?${k}=${encodeURIComponent(msg)}`);
 const TYPES = ['paid', 'unpaid', 'sick', 'other'];
+const TYPE_LABEL = { paid: 'платен', unpaid: 'неплатен', sick: 'болничен', other: 'друг' };
+const STATUS_LABEL = { pending: 'Чака одобрение', approved: 'Одобрена', rejected: 'Отказана' };
+
+async function loadLeave(id) {
+  const [l] = await query('SELECT l.*, u.full_name FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.id = ?', [id]);
+  return l;
+}
+const describe = (l) => `${l.full_name}, ${TYPE_LABEL[l.leave_type]} отпуск ${fmtDate(l.date_from)} – ${fmtDate(l.date_to)} (${l.days} дни)`;
 
 // Всеки потребител може да подаде заявка. След подаване служителят НЕ може да я променя.
 export async function addLeave(formData) {
@@ -26,9 +35,12 @@ export async function addLeave(formData) {
     [user.id, to, from]
   );
   if (overlap.length) back('error', 'Вече имате заявка, която се застъпва с този период.');
-  await query('INSERT INTO leave_requests (user_id, leave_type, date_from, date_to, days, reason) VALUES (?,?,?,?,?,?)', [
+  const res = await query('INSERT INTO leave_requests (user_id, leave_type, date_from, date_to, days, reason) VALUES (?,?,?,?,?,?)', [
     user.id, type, from, to, days, reason || null,
   ]);
+  await audit(user, 'create', 'leave', res.insertId,
+    `Заявка за отпуск: ${describe({ full_name: user.full_name, leave_type: type, date_from: from, date_to: to, days })}`,
+    reason ? { 'Причина': [null, reason] } : null);
   revalidatePath('/otpuski');
   back('ok', 'Заявката е подадена и очаква одобрение.');
 }
@@ -47,6 +59,8 @@ async function leaveConflicts(leaveId) {
 export async function reviewLeave(id, status, formData) {
   const admin = await requirePermission('leave.approve');
   if (!['approved', 'rejected', 'pending'].includes(status)) throw new Error('Невалиден статус');
+  const old = await loadLeave(id);
+  if (!old) back('error', 'Заявката не съществува.');
   if (status === 'approved') {
     const conflicts = await leaveConflicts(id);
     if (conflicts.length) {
@@ -59,13 +73,20 @@ export async function reviewLeave(id, status, formData) {
     'UPDATE leave_requests SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_comment = ? WHERE id = ?',
     [status, status === 'pending' ? null : admin.id, comment || null, id]
   );
+  const action = { approved: 'approve', rejected: 'reject', pending: 'reopen' }[status];
+  const changes = { 'Статус': [STATUS_LABEL[old.status], STATUS_LABEL[status]] };
+  if (comment) changes['Коментар'] = [old.review_comment, comment];
+  await audit(admin, action, 'leave', id, `${{ approve: 'Одобрен', reject: 'Отказан', reopen: 'Върнат за преглед' }[action]} отпуск: ${describe(old)}`, changes);
   revalidatePath('/otpuski');
   revalidatePath('/grafik');
 }
 
 export async function deleteLeave(id) {
-  await requirePermission('leave.approve');
+  const admin = await requirePermission('leave.approve');
+  const old = await loadLeave(id);
+  if (!old) return;
   await query('DELETE FROM leave_requests WHERE id = ?', [id]);
+  await audit(admin, 'delete', 'leave', id, `Изтрита заявка за отпуск (${STATUS_LABEL[old.status].toLowerCase()}): ${describe(old)}`);
   revalidatePath('/otpuski');
   revalidatePath('/grafik');
 }

@@ -4,7 +4,31 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { requirePermission } from '@/lib/auth';
 import { query, pool } from '@/lib/db';
-import { PERMISSION_KEYS } from '@/lib/permissions';
+import { PERMISSION_KEYS, PERMISSIONS } from '@/lib/permissions';
+import { audit, diff } from '@/lib/audit';
+
+const FIELDS = {
+  username: 'Потребителско име', full_name: 'Име', position: 'Длъжност', pharmacy: 'Аптека',
+  phone: 'Телефон', email: 'Имейл', is_admin: 'Администратор', active: 'Активен', permissions: 'Права',
+};
+
+// Четим „човешки“ вид на потребителя за журнала (имена вместо id)
+async function snapshot(u, perms) {
+  if (!u) return {};
+  const [pos] = u.position_id ? await query('SELECT name FROM positions WHERE id = ?', [u.position_id]) : [];
+  const [ph] = u.pharmacy_id ? await query('SELECT name FROM pharmacies WHERE id = ?', [u.pharmacy_id]) : [];
+  return {
+    username: u.username, full_name: u.full_name, position: pos?.name, pharmacy: ph?.name,
+    phone: u.phone, email: u.email, is_admin: u.is_admin ? 'да' : 'не', active: u.active ? 'да' : 'не',
+    permissions: perms.map((p) => PERMISSIONS[p] || p).sort().join('; ') || null,
+  };
+}
+async function loadUser(id) {
+  const [u] = await query('SELECT * FROM users WHERE id = ?', [id]);
+  if (!u) return null;
+  const perms = (await query('SELECT permission FROM user_permissions WHERE user_id = ?', [id])).map((r) => r.permission);
+  return { u, perms };
+}
 
 const go = (path, k, msg) => redirect(`${path}${path.includes('?') ? '&' : '?'}${k}=${encodeURIComponent(msg)}`);
 
@@ -56,6 +80,7 @@ export async function createUser(formData) {
   } finally {
     conn.release();
   }
+  await audit(me, 'create', 'user', id, `Създаден потребител „${f.full_name}“ (${f.username})`, diff({}, await snapshot(f, f.permissions), FIELDS));
   revalidatePath('/admin/potrebiteli');
   go('/admin/potrebiteli', 'ok', `Потребителят „${f.full_name}“ е създаден.`);
 }
@@ -75,6 +100,7 @@ export async function updateUser(id, formData) {
   const dup = await query('SELECT id FROM users WHERE username = ? AND id <> ?', [f.username, id]);
   if (dup.length) go(path, 'error', 'Потребителското име е заето.');
 
+  const before = await loadUser(id);
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -91,6 +117,9 @@ export async function updateUser(id, formData) {
   } finally {
     conn.release();
   }
+  const changes = diff(await snapshot(before.u, before.perms), await snapshot(f, f.permissions), FIELDS);
+  if (f.password) changes['Парола'] = ['••••••', 'сменена от администратор'];
+  if (Object.keys(changes).length) await audit(me, 'update', 'user', id, `Редактиран потребител „${f.full_name}“ (${f.username})`, changes);
   revalidatePath('/admin/potrebiteli');
   go(path, 'ok', 'Промените са записани.');
 }
@@ -100,7 +129,10 @@ export async function deleteUser(id) {
   if (id === me.id) go(`/admin/potrebiteli/${id}`, 'error', 'Не можете да изтриете собствения си профил.');
   const [target] = await query('SELECT is_admin FROM users WHERE id = ?', [id]);
   if (target?.is_admin && !me.is_admin) go(`/admin/potrebiteli/${id}`, 'error', 'Само администратор може да изтрие администратор.');
+  const before = await loadUser(id);
   await query('DELETE FROM users WHERE id = ?', [id]);
+  if (before) await audit(me, 'delete', 'user', id, `Изтрит потребител „${before.u.full_name}“ (${before.u.username}) заедно със смените, забележките и отпуските му`,
+    diff(await snapshot(before.u, before.perms), {}, FIELDS));
   revalidatePath('/admin/potrebiteli');
   go('/admin/potrebiteli', 'ok', 'Потребителят е изтрит.');
 }

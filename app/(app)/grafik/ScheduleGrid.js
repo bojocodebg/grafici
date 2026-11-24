@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition, useMemo, useRef } from 'react';
+import { useState, useTransition, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { setShift, copyPreviousMonth, clearMonth } from './actions';
@@ -14,6 +14,10 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
   const [local, setLocal] = useState({}); // оптимистични промени
   const [tip, setTip] = useState(null); // балон със забележки { x, y, notes, name, date }
   const hideTimer = useRef(null);
+  // Изглед: auto – таблица на широк екран, карти по дни на тесен; може да се избере ръчно
+  const [view, setView] = useState('auto');
+  useEffect(() => { try { const v = localStorage.getItem('grafik-view'); if (v) setView(v); } catch {} }, []);
+  const chooseView = (v) => { setView(v); try { localStorage.setItem('grafik-view', v); } catch {} };
   const types = useMemo(() => Object.fromEntries(shiftTypes.map((t) => [t.id, t])), [shiftTypes]);
 
   const cellValue = (key) => (key in local ? local[key] : shiftMap[key]?.typeId ?? null);
@@ -83,8 +87,17 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
     }, {})
   );
 
+  const sums = Object.fromEntries(workers.map((w) => [w.id, summary(w)]));
+  const fmtDay = (d) => `${d.day}.${String(month).padStart(2, '0')}`;
+
   return (
     <div className="card grid-card">
+      <div className="view-switch no-print" role="group" aria-label="Изглед на графика">
+        <span className="muted">Изглед:</span>
+        {[['auto', 'Автоматичен'], ['table', 'Таблица'], ['days', 'По дни']].map(([v, label]) => (
+          <button key={v} type="button" className={`btn sm ${view === v ? 'primary' : ''}`} aria-pressed={view === v} onClick={() => chooseView(v)}>{label}</button>
+        ))}
+      </div>
       {canEdit && (
         <div className="brushbar no-print">
           <span className="muted">Режим на попълване:</span>
@@ -110,6 +123,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
       {workers.length === 0 ? (
         <p className="muted">Няма служители, зачислени към тази аптека.</p>
       ) : (
+        <div className={`sched-views view-${view}`}>
         <div className="grid-scroll">
           <table className="sched">
             <thead>
@@ -125,7 +139,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
             </thead>
             <tbody>
               {workers.map((w) => {
-                const sum = summary(w);
+                const sum = sums[w.id];
                 return (
                   <tr key={w.id} className={w.id === currentUserId ? 'me' : ''}>
                     <th className="sticky name">
@@ -210,6 +224,81 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        {/* ---- Изглед „По дни“ ---- */}
+        <div className="agenda">
+          <section className="agenda-summary">
+            <h3>Часове за месеца</h3>
+            <ul>
+              {workers.map((w) => (
+                <li key={w.id} className={w.id === currentUserId ? 'me' : ''}>
+                  <span className="who"><b>{w.full_name}</b>{w.position && <small>{w.position}</small>}</span>
+                  <span className="sum">
+                    {sums[w.id].list.map(({ t, hours }) => (
+                      <span key={t.id}><i style={{ background: t.color }} />{t.code}: {hours} ч</span>
+                    ))}
+                    <b>Общо: {sums[w.id].total} ч</b>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <div className="day-cards">
+            {days.map((d) => {
+              const adminNotes = noteMap[`admin|${d.date}`];
+              return (
+                <article key={d.date} className={`day-card ${d.weekend ? 'we' : ''} ${d.date === today ? 'today' : ''}`} id={`den-${d.day}`}>
+                  <header>
+                    <b>{d.weekday}, {fmtDay(d)}</b>
+                    {d.date === today && <span className="badge ok">Днес</span>}
+                    <span className="cov">{Object.entries(coverage[d.day - 1]).map(([c, n]) => `${c}:${n}`).join(' ')}</span>
+                  </header>
+                  <ul>
+                    {workers.map((w) => {
+                      const key = `${w.id}|${d.date}`;
+                      const t = types[cellValue(key)];
+                      const leave = leaveMap[key];
+                      const cellNotes = noteMap[key];
+                      const editable = canEdit && !leave;
+                      return (
+                        <li key={w.id} className={`${w.id === currentUserId ? 'me' : ''} ${leave && t ? 'conflict' : ''}`}>
+                          <button
+                            type="button"
+                            className="day-row"
+                            disabled={!canEdit || (leave && !t)}
+                            onClick={() => onCell(w, d)}
+                            aria-label={`${w.full_name}, ${fmtDay(d)}${editable ? ' – промени смяната' : ''}`}
+                          >
+                            <span className="who">{w.full_name}</span>
+                            {t ? (
+                              <span className="what"><span className="chip" style={{ background: t.color }}>{t.code}</span><span className="tname">{t.name}{t.start_time && <small> {t.start_time}–{t.end_time}</small>}</span></span>
+                            ) : leave ? (
+                              <span className="what"><span className="chip leave">О</span><span className="tname">{leave}</span></span>
+                            ) : (
+                              <span className="what muted">{canEdit ? '+ смяна' : '—'}</span>
+                            )}
+                          </button>
+                          {cellNotes && (
+                            <span className="note-dot inline-dot" role="button" tabIndex={0} aria-label={`Забележки: ${cellNotes.length}`}
+                              onClick={(e) => showTip(e, w, d)} onKeyDown={(e) => e.key === 'Enter' && showTip(e, w, d)} />
+                          )}
+                        </li>
+                      );
+                    })}
+                    {adminNotes && (
+                      <li className="mgmt">
+                        <span className="day-row static"><span className="who">Администрация</span><span className="what muted">забележка</span></span>
+                        <span className="note-dot inline-dot" role="button" tabIndex={0} aria-label="Забележки на администрацията"
+                          onClick={(e) => showTip(e, ADMIN_ROW, d)} onKeyDown={(e) => e.key === 'Enter' && showTip(e, ADMIN_ROW, d)} />
+                      </li>
+                    )}
+                  </ul>
+                </article>
+              );
+            })}
+          </div>
+        </div>
         </div>
       )}
 
