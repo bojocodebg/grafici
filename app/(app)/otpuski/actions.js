@@ -33,9 +33,27 @@ export async function addLeave(formData) {
   back('ok', 'Заявката е подадена и очаква одобрение.');
 }
 
+// Смени, записани в графика на служителя в периода на отпуска
+async function leaveConflicts(leaveId) {
+  return query(
+    `SELECT s.work_date, st.code, st.name FROM leave_requests l
+       JOIN shifts s ON s.user_id = l.user_id AND s.work_date BETWEEN l.date_from AND l.date_to
+       JOIN shift_types st ON st.id = s.shift_type_id
+      WHERE l.id = ? ORDER BY s.work_date`,
+    [leaveId]
+  );
+}
+
 export async function reviewLeave(id, status, formData) {
   const admin = await requirePermission('leave.approve');
   if (!['approved', 'rejected', 'pending'].includes(status)) throw new Error('Невалиден статус');
+  if (status === 'approved') {
+    const conflicts = await leaveConflicts(id);
+    if (conflicts.length) {
+      const list = conflicts.map((c) => `${c.work_date.slice(8)}.${c.work_date.slice(5, 7)} (${c.code})`).join(', ');
+      back('error', `Отпускът не може да бъде одобрен – в периода има записани смени: ${list}. Първо ги изтрийте от графика.`);
+    }
+  }
   const comment = String(formData?.get?.('comment') || '').trim();
   await query(
     'UPDATE leave_requests SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_comment = ? WHERE id = ?',

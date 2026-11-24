@@ -22,20 +22,27 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
     const key = `${userId}|${date}`;
     setLocal((l) => ({ ...l, [key]: typeId }));
     startTransition(async () => {
+      const revert = () => setLocal((l) => { const n = { ...l }; delete n[key]; return n; });
       try {
-        await setShift({ userId, date, shiftTypeId: typeId, pharmacyId });
+        const res = await setShift({ userId, date, shiftTypeId: typeId, pharmacyId });
+        if (res?.error) { alert(res.error); revert(); }
         router.refresh();
       } catch (e) {
         alert('Грешка при запис: ' + e.message);
-        setLocal((l) => { const n = { ...l }; delete n[key]; return n; });
+        revert();
       }
     });
   }
 
   function onCell(w, d) {
     if (!canEdit) return;
+    const key = `${w.id}|${d.date}`;
+    if (leaveMap[key]) {
+      // В ден с одобрен отпуск не се добавя смяна; позволено е само изтриване на стар запис
+      if (cellValue(key) !== null && confirm(`${w.full_name} е в одобрен отпуск на ${d.day}.${String(month).padStart(2, '0')}. Да се изтрие ли записаната смяна?`)) save(w.id, d.date, null);
+      return;
+    }
     if (brush !== null) {
-      const key = `${w.id}|${d.date}`;
       save(w.id, d.date, cellValue(key) === brush || brush === 0 ? null : brush);
     } else setPicker({ userId: w.id, date: d.date, name: w.full_name, weekday: d.weekday, day: d.day });
   }
@@ -43,7 +50,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
   function showTip(e, w, d) {
     clearTimeout(hideTimer.current);
     const r = e.currentTarget.getBoundingClientRect();
-    const width = 300;
+    const width = Math.min(300, window.innerWidth - 16);
     const x = Math.max(8, Math.min(r.left - 12, window.innerWidth - width - 8));
     const below = r.bottom + 220 < window.innerHeight;
     setTip({ x, y: below ? r.bottom + 6 : r.top - 6, below, notes: noteMap[`${w.id}|${d.date}`], name: w.full_name, date: d });
@@ -139,12 +146,13 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                       const other = shiftMap[key] && shiftMap[key].pharmacyId !== pharmacyId && !(key in local);
                       const leave = leaveMap[key];
                       const cellNotes = noteMap[key];
+                      const locked = !!leave;
                       return (
                         <td
                           key={d.date}
-                          className={`${d.weekend ? 'we' : ''} ${d.date === today ? 'today' : ''} ${canEdit ? 'editable' : ''}`}
+                          className={`${d.weekend ? 'we' : ''} ${d.date === today ? 'today' : ''} ${canEdit && !locked ? 'editable' : ''} ${locked ? 'locked' : ''} ${locked && t ? 'conflict' : ''}`}
                           onClick={() => onCell(w, d)}
-                          title={t ? `${t.name}${t.start_time ? ` ${t.start_time}–${t.end_time}` : ''}${other ? ' (друга аптека)' : ''}` : leave || ''}
+                          title={locked ? `${leave} – не може да се добавя смяна${t ? ` (записана смяна: ${t.name} – кликнете, за да я изтриете)` : ''}` : t ? `${t.name}${t.start_time ? ` ${t.start_time}–${t.end_time}` : ''}${other ? ' (друга аптека)' : ''}` : ''}
                         >
                           {t ? (
                             <span className={`chip ${other ? 'other' : ''}`} style={{ background: t.color }}>{t.code}</span>
@@ -244,9 +252,6 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{picker.name}</h3>
             <p className="muted">{picker.weekday}, {picker.day}.{String(month).padStart(2, '0')}.{year}</p>
-            {leaveMap[`${picker.userId}|${picker.date}`] && (
-              <div className="alert">Служителят е в одобрен отпуск ({leaveMap[`${picker.userId}|${picker.date}`]}).</div>
-            )}
             <div className="pick-list">
               {shiftTypes.map((t) => (
                 <button key={t.id} className="btn pick" onClick={() => { save(picker.userId, picker.date, t.id); setPicker(null); }}>

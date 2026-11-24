@@ -11,8 +11,14 @@ export async function setShift({ userId, date, shiftTypeId, pharmacyId }) {
   const editor = await requirePermission('schedule.edit');
   if (!DATE_RE.test(date)) throw new Error('Невалидна дата');
   if (!shiftTypeId) {
+    // Изтриване е позволено винаги (вкл. ден с отпуск – за почистване на стари записи)
     await query('DELETE FROM shifts WHERE user_id = ? AND work_date = ?', [userId, date]);
   } else {
+    const leave = await query(
+      "SELECT id FROM leave_requests WHERE user_id = ? AND status = 'approved' AND ? BETWEEN date_from AND date_to LIMIT 1",
+      [userId, date]
+    );
+    if (leave.length) return { error: 'Служителят е в одобрен отпуск на тази дата – не може да се добавя смяна.' };
     await query(
       `INSERT INTO shifts (user_id, pharmacy_id, work_date, shift_type_id, created_by)
        VALUES (?,?,?,?,?)
@@ -41,9 +47,12 @@ export async function copyPreviousMonth({ pharmacyId, year, month }) {
   for (const r of rows) {
     const day = days[r.d - 1];
     if (!day) continue;
+    // не се копират смени в дни с одобрен отпуск
     const res = await query(
-      'INSERT IGNORE INTO shifts (user_id, pharmacy_id, work_date, shift_type_id, created_by) VALUES (?,?,?,?,?)',
-      [r.user_id, pharmacyId, day.date, r.shift_type_id, editor.id]
+      `INSERT IGNORE INTO shifts (user_id, pharmacy_id, work_date, shift_type_id, created_by)
+       SELECT ?,?,?,?,? FROM DUAL
+        WHERE NOT EXISTS (SELECT 1 FROM leave_requests WHERE user_id = ? AND status = 'approved' AND ? BETWEEN date_from AND date_to)`,
+      [r.user_id, pharmacyId, day.date, r.shift_type_id, editor.id, r.user_id, day.date]
     );
     n += res.affectedRows;
   }

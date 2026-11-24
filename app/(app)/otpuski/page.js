@@ -35,7 +35,7 @@ export default async function LeavePage({ searchParams }) {
   const st = ['pending', 'approved', 'rejected'].includes(sp.s) ? sp.s : 'pending';
   const all = approve
     ? await query(
-        `SELECT l.*, u.full_name, p.name pharmacy, r.full_name reviewer
+        `SELECT l.*, u.full_name, u.pharmacy_id, p.name pharmacy, r.full_name reviewer
            FROM leave_requests l JOIN users u ON u.id = l.user_id
            LEFT JOIN pharmacies p ON p.id = u.pharmacy_id
            LEFT JOIN users r ON r.id = l.reviewed_by
@@ -43,6 +43,19 @@ export default async function LeavePage({ searchParams }) {
         [st]
       )
     : [];
+
+  // Смени, които се застъпват с чакащите заявки – блокират одобряването
+  const conflicts = {};
+  if (approve && st === 'pending' && all.length) {
+    const rows = await query(
+      `SELECT l.id leave_id, s.work_date, st.code, st.color FROM leave_requests l
+         JOIN shifts s ON s.user_id = l.user_id AND s.work_date BETWEEN l.date_from AND l.date_to
+         JOIN shift_types st ON st.id = s.shift_type_id
+        WHERE l.id IN (?) ORDER BY s.work_date`,
+      [all.map((l) => l.id)]
+    );
+    for (const r of rows) (conflicts[r.leave_id] ??= []).push(r);
+  }
 
   return (
     <div className="stack-lg">
@@ -74,17 +87,17 @@ export default async function LeavePage({ searchParams }) {
         <p className="muted">Одобрен платен отпуск през {year} г.: <b>{usedPaid}</b> дни</p>
         {mine.length === 0 ? <p className="muted">Нямате подадени заявки.</p> : (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table cards">
               <thead><tr><th>Период</th><th>Дни</th><th>Вид</th><th>Причина</th><th>Статус</th><th>Решение</th></tr></thead>
               <tbody>
                 {mine.map((l) => (
                   <tr key={l.id}>
-                    <td>{fmtDate(l.date_from)} – {fmtDate(l.date_to)}</td>
-                    <td>{l.days}</td>
-                    <td>{TYPE[l.leave_type]}</td>
-                    <td className="pre">{l.reason}</td>
-                    <td><StatusBadge s={l.status} /></td>
-                    <td>{l.reviewer && <small>{l.reviewer}, {fmtDateTime(l.reviewed_at)}</small>}{l.review_comment && <div className="pre">{l.review_comment}</div>}</td>
+                    <td data-label="Период"><b>{fmtDate(l.date_from)} – {fmtDate(l.date_to)}</b></td>
+                    <td data-label="Дни">{l.days}</td>
+                    <td data-label="Вид">{TYPE[l.leave_type]}</td>
+                    <td data-label="Причина" className="pre">{l.reason || '—'}</td>
+                    <td data-label="Статус"><StatusBadge s={l.status} /></td>
+                    <td data-label="Решение">{l.reviewer ? <small>{l.reviewer}, {fmtDateTime(l.reviewed_at)}</small> : '—'}{l.review_comment && <div className="pre">{l.review_comment}</div>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -105,39 +118,56 @@ export default async function LeavePage({ searchParams }) {
           </div>
           {all.length === 0 ? <p className="muted">Няма заявки.</p> : (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table cards">
                 <thead><tr><th>Служител</th><th>Период</th><th>Дни</th><th>Вид</th><th>Причина</th><th>Подадена</th><th>Действие</th></tr></thead>
                 <tbody>
-                  {all.map((l) => (
-                    <tr key={l.id}>
-                      <td><b>{l.full_name}</b><br /><small className="muted">{l.pharmacy}</small></td>
-                      <td>{fmtDate(l.date_from)} – {fmtDate(l.date_to)}</td>
-                      <td>{l.days}</td>
-                      <td>{TYPE[l.leave_type]}</td>
-                      <td className="pre">{l.reason}</td>
-                      <td><small>{fmtDateTime(l.created_at)}</small></td>
-                      <td>
-                        {l.status === 'pending' ? (
-                          <form className="stack-sm" action={reviewLeave.bind(null, l.id, 'approved')}>
-                            <input name="comment" placeholder="Коментар (по избор)" />
-                            <div className="inline">
-                              <SubmitButton className="btn sm primary">Одобри</SubmitButton>
-                              <SubmitButton className="btn sm danger" formAction={reviewLeave.bind(null, l.id, 'rejected')}>Откажи</SubmitButton>
+                  {all.map((l) => {
+                    const c = conflicts[l.id];
+                    return (
+                      <tr key={l.id}>
+                        <td data-label="Служител"><b>{l.full_name}</b>{l.pharmacy && <><br /><small className="muted">{l.pharmacy}</small></>}</td>
+                        <td data-label="Период">{fmtDate(l.date_from)} – {fmtDate(l.date_to)}</td>
+                        <td data-label="Дни">{l.days}</td>
+                        <td data-label="Вид">{TYPE[l.leave_type]}</td>
+                        <td data-label="Причина" className="pre">{l.reason || '—'}</td>
+                        <td data-label="Подадена"><small>{fmtDateTime(l.created_at)}</small></td>
+                        <td data-label="Действие" className="actions-cell">
+                          {l.status === 'pending' ? (
+                            <form className="stack-sm" action={reviewLeave.bind(null, l.id, 'approved')}>
+                              {c && (
+                                <div className="alert error conflict">
+                                  <b>⚠ В периода има записани смени ({c.length}):</b>
+                                  <div className="conflict-list">
+                                    {c.map((x) => (
+                                      <span key={x.work_date}><span className="chip" style={{ background: x.color }}>{x.code}</span> {fmtDate(x.work_date).slice(0, 5)}</span>
+                                    ))}
+                                  </div>
+                                  <span>Изтрийте ги от графика, за да може отпускът да бъде одобрен.</span>
+                                  {l.pharmacy_id && (
+                                    <Link href={`/grafik?m=${l.date_from.slice(0, 7)}&a=${l.pharmacy_id}`}>Към графика →</Link>
+                                  )}
+                                </div>
+                              )}
+                              <input name="comment" placeholder="Коментар (по избор)" />
+                              <div className="inline">
+                                <SubmitButton className="btn sm primary" disabled={!!c} title={c ? 'Първо изтрийте смените в периода' : undefined}>Одобри</SubmitButton>
+                                <SubmitButton className="btn sm danger" formAction={reviewLeave.bind(null, l.id, 'rejected')}>Откажи</SubmitButton>
+                              </div>
+                            </form>
+                          ) : (
+                            <div className="stack-sm">
+                              <StatusBadge s={l.status} />
+                              <small className="muted">{l.reviewer}{l.review_comment && `: ${l.review_comment}`}</small>
+                              <div className="inline">
+                                <form action={reviewLeave.bind(null, l.id, 'pending')}><SubmitButton className="btn sm">Върни за преглед</SubmitButton></form>
+                                <form action={deleteLeave.bind(null, l.id)}><SubmitButton className="btn sm danger" confirm="Изтриване на заявката?">Изтрий</SubmitButton></form>
+                              </div>
                             </div>
-                          </form>
-                        ) : (
-                          <div className="stack-sm">
-                            <StatusBadge s={l.status} />
-                            <small className="muted">{l.reviewer}{l.review_comment && `: ${l.review_comment}`}</small>
-                            <div className="inline">
-                              <form action={reviewLeave.bind(null, l.id, 'pending')}><SubmitButton className="btn sm">Върни за преглед</SubmitButton></form>
-                              <form action={deleteLeave.bind(null, l.id)}><SubmitButton className="btn sm danger" confirm="Изтриване на заявката?">Изтрий</SubmitButton></form>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

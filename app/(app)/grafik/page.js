@@ -140,18 +140,18 @@ export default async function SchedulePage({ searchParams }) {
           <p className="muted">Нямате въведени смени за този месец.</p>
         ) : (
           <>
-            <table className="table">
+            <table className="table cards">
               <thead><tr><th>Дата</th><th>Смяна</th><th>Час</th><th>Часове</th><th>Аптека</th></tr></thead>
               <tbody>
                 {mine.map((s) => {
                   const d = days.find((x) => x.date === s.work_date);
                   return (
                     <tr key={s.work_date} className={s.work_date === today ? 'hl' : ''}>
-                      <td>{d?.weekday}, {s.work_date.slice(8)}.{s.work_date.slice(5, 7)}</td>
-                      <td><span className="chip" style={{ background: s.color }}>{s.code}</span> {s.name}</td>
-                      <td>{s.start_time ? `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}` : '—'}</td>
-                      <td>{Number(s.hours)}</td>
-                      <td>{s.pharmacy}</td>
+                      <td data-label="Дата"><b>{d?.weekday}, {s.work_date.slice(8)}.{s.work_date.slice(5, 7)}</b></td>
+                      <td data-label="Смяна"><span className="chip" style={{ background: s.color }}>{s.code}</span> {s.name}</td>
+                      <td data-label="Час">{s.start_time ? `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}` : '—'}</td>
+                      <td data-label="Часове">{Number(s.hours)}</td>
+                      <td data-label="Аптека">{s.pharmacy}</td>
                     </tr>
                   );
                 })}

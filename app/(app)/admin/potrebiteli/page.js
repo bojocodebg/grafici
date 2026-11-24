@@ -25,22 +25,22 @@ export default async function UsersPage({ searchParams }) {
       </div>
       <Flash sp={sp} />
       <div className="card table-wrap">
-        <table className="table">
+        <table className="table cards">
           <thead><tr><th>Име</th><th>Потребител</th><th>Длъжност</th><th>Аптека</th><th>Права</th><th>Статус</th><th /></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className={u.active ? '' : 'dim'}>
-                <td><b>{u.full_name}</b></td>
-                <td>{u.username}</td>
-                <td>{u.position}</td>
-                <td>{u.pharmacy || <span className="muted">—</span>}</td>
-                <td>
+                <td data-label="Име"><b>{u.full_name}</b></td>
+                <td data-label="Потребител">{u.username}</td>
+                <td data-label="Длъжност">{u.position || '—'}</td>
+                <td data-label="Аптека">{u.pharmacy || <span className="muted">—</span>}</td>
+                <td data-label="Права">
                   {u.is_admin ? <span className="badge ok">Администратор</span>
                     : u.perms ? u.perms.split(',').map((p) => <span key={p} className="badge" title={PERMISSIONS[p]}>{PERMISSIONS[p] || p}</span>)
                     : <span className="muted">Служител</span>}
                 </td>
-                <td>{u.active ? <span className="badge ok">Активен</span> : <span className="badge bad">Неактивен</span>}</td>
-                <td><Link className="btn sm" href={`/admin/potrebiteli/${u.id}`}>Редакция</Link></td>
+                <td data-label="Статус">{u.active ? <span className="badge ok">Активен</span> : <span className="badge bad">Неактивен</span>}</td>
+                <td className="actions-cell"><Link className="btn sm" href={`/admin/potrebiteli/${u.id}`}>Редакция</Link></td>
               </tr>
             ))}
           </tbody>
