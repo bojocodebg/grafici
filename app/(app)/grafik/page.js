@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 import { MONTHS, monthDays, parseMonth, shiftMonth, monthKey, fmtTime, todayStr } from '@/lib/dates';
 import ScheduleGrid from './ScheduleGrid';
 import PrintButton from './PrintButton';
+import AutoSubmitSelect from '@/app/components/AutoSubmitSelect';
 
 export const metadata = { title: 'График – Пулс' };
 
@@ -105,10 +106,11 @@ export default async function SchedulePage({ searchParams }) {
           {viewAll && pharmacies.length > 1 && (
             <form className="inline" action="/grafik">
               <input type="hidden" name="m" value={monthKey(year, month)} />
-              <select name="a" defaultValue={pharmacy?.id} className="auto-submit">
+              <AutoSubmitSelect name="a" defaultValue={pharmacy?.id} aria-label="Аптека">
                 {pharmacies.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <button className="btn">Покажи</button>
+              </AutoSubmitSelect>
+              {/* резервен бутон само ако JavaScript е изключен */}
+              <noscript><button className="btn">Покажи</button></noscript>
             </form>
           )}
           <PrintButton />
