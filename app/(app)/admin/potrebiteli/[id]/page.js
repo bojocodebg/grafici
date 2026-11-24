@@ -11,13 +11,14 @@ export default async function UserEditPage({ params, searchParams }) {
   const sp = await searchParams;
   const me = await requirePermission('users.manage');
   const pharmacies = await query('SELECT id, name, active FROM pharmacies ORDER BY name');
+  const positions = await query('SELECT id, name, active FROM positions ORDER BY sort_order, name');
 
   if (id === 'nov') {
     return (
       <div className="stack-lg">
         <h1>Нов потребител</h1>
         <Flash sp={sp} />
-        <UserForm action={createUser} pharmacies={pharmacies} isNew canGrantAdmin={me.is_admin} />
+        <UserForm action={createUser} pharmacies={pharmacies} positions={positions} isNew canGrantAdmin={me.is_admin} />
       </div>
     );
   }
@@ -38,7 +39,7 @@ export default async function UserEditPage({ params, searchParams }) {
         )}
       </div>
       <Flash sp={sp} />
-      <UserForm action={updateUser.bind(null, uid)} user={user} perms={perms} pharmacies={pharmacies} canGrantAdmin={me.is_admin} />
+      <UserForm action={updateUser.bind(null, uid)} user={user} perms={perms} pharmacies={pharmacies} positions={positions} canGrantAdmin={me.is_admin} />
     </div>
   );
 }

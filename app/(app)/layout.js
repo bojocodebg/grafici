@@ -9,6 +9,7 @@ export default async function AppLayout({ children }) {
   const admin = [
     can(user, 'users.manage') && { href: '/admin/potrebiteli', label: 'Потребители' },
     can(user, 'pharmacies.manage') && { href: '/admin/apteki', label: 'Аптеки' },
+    can(user, 'pharmacies.manage') && { href: '/admin/dlazhnosti', label: 'Длъжности' },
     can(user, 'pharmacies.manage') && { href: '/admin/smeni', label: 'Типове смени' },
   ].filter(Boolean);
 

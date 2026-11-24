@@ -10,9 +10,10 @@ export default async function UsersPage({ searchParams }) {
   const sp = await searchParams;
   await requirePermission('users.manage');
   const users = await query(
-    `SELECT u.id, u.username, u.full_name, u.position, u.is_admin, u.active, p.name pharmacy,
+    `SELECT u.id, u.username, u.full_name, pos.name position, u.is_admin, u.active, p.name pharmacy,
             GROUP_CONCAT(up.permission) perms
        FROM users u LEFT JOIN pharmacies p ON p.id = u.pharmacy_id
+       LEFT JOIN positions pos ON pos.id = u.position_id
        LEFT JOIN user_permissions up ON up.user_id = u.id
       GROUP BY u.id ORDER BY u.active DESC, p.name, u.full_name`
   );

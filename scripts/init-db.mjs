@@ -30,6 +30,27 @@ await conn.query(schema);
 await conn.query(`USE \`${process.env.DB_NAME || 'grafici'}\``);
 console.log('✔ Таблиците са създадени.');
 
+// --- Миграции за бази, създадени с по-стара версия ---
+const hasCol = async (table, col) => {
+  const [r] = await conn.query(
+    'SELECT COUNT(*) c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+    [table, col]
+  );
+  return r[0].c > 0;
+};
+if (!(await hasCol('users', 'position_id'))) {
+  await conn.query('ALTER TABLE users ADD COLUMN position_id INT NULL AFTER full_name');
+  await conn.query('ALTER TABLE users ADD CONSTRAINT fk_users_position FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE SET NULL');
+  console.log('✔ Миграция: добавена колона users.position_id');
+}
+if (await hasCol('users', 'position')) {
+  // Старите текстови длъжности стават записи в таблицата "positions"
+  await conn.query("INSERT IGNORE INTO positions (name) SELECT DISTINCT TRIM(position) FROM users WHERE position IS NOT NULL AND TRIM(position) <> ''");
+  await conn.query('UPDATE users u JOIN positions p ON p.name = TRIM(u.position) SET u.position_id = p.id WHERE u.position_id IS NULL');
+  await conn.query('ALTER TABLE users DROP COLUMN position');
+  console.log('✔ Миграция: длъжностите са преместени в таблица positions');
+}
+
 const [[{ c: pc }]] = await conn.query('SELECT COUNT(*) c FROM pharmacies');
 if (pc === 0) {
   await conn.query(
@@ -37,6 +58,15 @@ if (pc === 0) {
     ['Пулс – Център', 'ул. Примерна 1', '0888 000 001', 'Пулс – Младост', 'бул. Примерен 25', '0888 000 002']
   );
   console.log('✔ Добавени примерни аптеки.');
+}
+
+const [[{ c: posc }]] = await conn.query('SELECT COUNT(*) c FROM positions');
+if (posc === 0) {
+  await conn.query(
+    `INSERT INTO positions (name, sort_order) VALUES
+     ('Управител', 1), ('Магистър фармацевт', 2), ('Помощник-фармацевт', 3), ('Санитар', 4)`
+  );
+  console.log('✔ Добавени длъжности.');
 }
 
 const [[{ c: sc }]] = await conn.query('SELECT COUNT(*) c FROM shift_types');
@@ -56,8 +86,8 @@ const [[{ c: uc }]] = await conn.query('SELECT COUNT(*) c FROM users WHERE usern
 if (uc === 0) {
   const hash = await bcrypt.hash('admin123', 10);
   await conn.query(
-    'INSERT INTO users (username, password_hash, full_name, position, is_admin) VALUES (?,?,?,?,1)',
-    ['admin', hash, 'Администратор', 'Управител']
+    "INSERT INTO users (username, password_hash, full_name, position_id, is_admin) VALUES (?,?,?,(SELECT id FROM positions WHERE name = 'Управител'),1)",
+    ['admin', hash, 'Администратор']
   );
   console.log('✔ Създаден администратор: admin / admin123 (сменете паролата след вход!)');
 }

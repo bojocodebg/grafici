@@ -1,14 +1,17 @@
 'use client';
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { setShift, copyPreviousMonth, clearMonth } from './actions';
 
-export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leaveMap, canEdit, currentUserId, pharmacyId, year, month, today }) {
+export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leaveMap, noteMap = {}, canEdit, currentUserId, pharmacyId, year, month, today }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [picker, setPicker] = useState(null); // { userId, date, name }
   const [brush, setBrush] = useState(null); // избран тип смяна за бързо попълване
   const [local, setLocal] = useState({}); // оптимистични промени
+  const [tip, setTip] = useState(null); // балон със забележки { x, y, notes, name, date }
+  const hideTimer = useRef(null);
   const types = useMemo(() => Object.fromEntries(shiftTypes.map((t) => [t.id, t])), [shiftTypes]);
 
   const cellValue = (key) => (key in local ? local[key] : shiftMap[key]?.typeId ?? null);
@@ -33,6 +36,33 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
       const key = `${w.id}|${d.date}`;
       save(w.id, d.date, cellValue(key) === brush || brush === 0 ? null : brush);
     } else setPicker({ userId: w.id, date: d.date, name: w.full_name, weekday: d.weekday, day: d.day });
+  }
+
+  function showTip(e, w, d) {
+    clearTimeout(hideTimer.current);
+    const r = e.currentTarget.getBoundingClientRect();
+    const width = 300;
+    const x = Math.max(8, Math.min(r.left - 12, window.innerWidth - width - 8));
+    const below = r.bottom + 220 < window.innerHeight;
+    setTip({ x, y: below ? r.bottom + 6 : r.top - 6, below, notes: noteMap[`${w.id}|${d.date}`], name: w.full_name, date: d });
+  }
+  const hideTipSoon = () => { clearTimeout(hideTimer.current); hideTimer.current = setTimeout(() => setTip(null), 250); };
+  const keepTip = () => clearTimeout(hideTimer.current);
+
+  // Обобщение за служителя: часове по тип смяна + общо
+  function summary(w) {
+    const by = {};
+    let total = 0;
+    for (const d of days) {
+      const t = types[cellValue(`${w.id}|${d.date}`)];
+      if (!t) continue;
+      total += t.hours;
+      if (t.hours <= 0) continue;
+      by[t.id] ??= { t, count: 0, hours: 0 };
+      by[t.id].count++;
+      by[t.id].hours += t.hours;
+    }
+    return { list: shiftTypes.filter((t) => by[t.id]).map((t) => by[t.id]), total };
   }
 
   // Брой хора на смяна за всеки ден (за контрол на покритието 24/7)
@@ -86,19 +116,27 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
             </thead>
             <tbody>
               {workers.map((w) => {
-                let total = 0;
+                const sum = summary(w);
                 return (
                   <tr key={w.id} className={w.id === currentUserId ? 'me' : ''}>
                     <th className="sticky name">
                       {w.full_name}
                       {w.position && <small>{w.position}</small>}
+                      <div className="sum">
+                        {sum.list.map(({ t, count, hours }) => (
+                          <span key={t.id} title={`${t.name}: ${count} бр. смени, ${hours} ч`}>
+                            <i style={{ background: t.color }} />{t.code}: {hours} ч
+                          </span>
+                        ))}
+                        <b>Общо: {sum.total} ч</b>
+                      </div>
                     </th>
                     {days.map((d) => {
                       const key = `${w.id}|${d.date}`;
                       const t = types[cellValue(key)];
                       const other = shiftMap[key] && shiftMap[key].pharmacyId !== pharmacyId && !(key in local);
                       const leave = leaveMap[key];
-                      if (t) total += t.hours;
+                      const cellNotes = noteMap[key];
                       return (
                         <td
                           key={d.date}
@@ -111,10 +149,19 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                           ) : leave ? (
                             <span className="chip leave">О</span>
                           ) : null}
+                          {cellNotes && (
+                            <span
+                              className="note-dot"
+                              onMouseEnter={(e) => showTip(e, w, d)}
+                              onMouseLeave={hideTipSoon}
+                              onClick={(e) => { e.stopPropagation(); showTip(e, w, d); }}
+                              aria-label={`Забележки: ${cellNotes.length}`}
+                            />
+                          )}
                         </td>
                       );
                     })}
-                    <td className="total">{total}</td>
+                    <td className="total">{sum.total}</td>
                   </tr>
                 );
               })}
@@ -142,8 +189,30 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
           </span>
         ))}
         <span><span className="chip leave">О</span> Одобрен отпуск</span>
+        <span><span className="note-dot legend-dot" /> Забележка (задръжте мишката)</span>
         {pending && <span className="muted">Записване…</span>}
       </div>
+
+      {tip && (
+        <div
+          className={`note-tip ${tip.below ? '' : 'above'}`}
+          style={{ left: tip.x, top: tip.y }}
+          onMouseEnter={keepTip}
+          onMouseLeave={hideTipSoon}
+        >
+          <div className="note-tip-head">
+            <b>{tip.name}</b> · {tip.date.weekday}, {tip.date.day}.{String(month).padStart(2, '0')}
+            <button className="x" onClick={() => setTip(null)} aria-label="Затвори">×</button>
+          </div>
+          {tip.notes.map((n) => (
+            <div key={n.id} className="note-tip-item">
+              <p className="pre">{n.content}</p>
+              {n.reply && <p className="pre reply-line"><b>{n.replier || 'Отговор'}:</b> {n.reply}</p>}
+              <Link href={`/zabelezhki#note-${n.id}`}>Към забележката →</Link>
+            </div>
+          ))}
+        </div>
+      )}
 
       {picker && (
         <div className="modal-bg" onClick={() => setPicker(null)}>

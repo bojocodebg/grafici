@@ -12,7 +12,7 @@ function readForm(fd) {
   return {
     username: String(fd.get('username') || '').trim(),
     full_name: String(fd.get('full_name') || '').trim(),
-    position: String(fd.get('position') || '').trim() || null,
+    position_id: Number(fd.get('position_id')) || null,
     phone: String(fd.get('phone') || '').trim() || null,
     email: String(fd.get('email') || '').trim() || null,
     pharmacy_id: Number(fd.get('pharmacy_id')) || null,
@@ -44,8 +44,8 @@ export async function createUser(formData) {
   try {
     await conn.beginTransaction();
     const [res] = await conn.query(
-      'INSERT INTO users (username, password_hash, full_name, position, phone, email, pharmacy_id, is_admin, active) VALUES (?,?,?,?,?,?,?,?,?)',
-      [f.username, await bcrypt.hash(f.password, 10), f.full_name, f.position, f.phone, f.email, f.pharmacy_id, f.is_admin, f.active]
+      'INSERT INTO users (username, password_hash, full_name, position_id, phone, email, pharmacy_id, is_admin, active) VALUES (?,?,?,?,?,?,?,?,?)',
+      [f.username, await bcrypt.hash(f.password, 10), f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.active]
     );
     id = res.insertId;
     await savePermissions(conn, id, f.permissions);
@@ -79,8 +79,8 @@ export async function updateUser(id, formData) {
   try {
     await conn.beginTransaction();
     await conn.query(
-      'UPDATE users SET username=?, full_name=?, position=?, phone=?, email=?, pharmacy_id=?, is_admin=?, active=? WHERE id=?',
-      [f.username, f.full_name, f.position, f.phone, f.email, f.pharmacy_id, f.is_admin, f.active, id]
+      'UPDATE users SET username=?, full_name=?, position_id=?, phone=?, email=?, pharmacy_id=?, is_admin=?, active=? WHERE id=?',
+      [f.username, f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.active, id]
     );
     if (f.password) await conn.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(f.password, 10), id]);
     await savePermissions(conn, id, f.permissions);

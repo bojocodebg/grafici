@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { PERMISSIONS } from '@/lib/permissions';
 import SubmitButton from '@/app/components/SubmitButton';
 
-export default function UserForm({ action, user = {}, perms = [], pharmacies, isNew, canGrantAdmin }) {
+export default function UserForm({ action, user = {}, perms = [], pharmacies, positions, isNew, canGrantAdmin }) {
   return (
     <form action={action} className="stack-lg">
       <section className="card">
@@ -10,7 +10,14 @@ export default function UserForm({ action, user = {}, perms = [], pharmacies, is
         <div className="form-grid">
           <label>Име и фамилия *<input name="full_name" defaultValue={user.full_name} required /></label>
           <label>Потребителско име *<input name="username" defaultValue={user.username} required pattern="[a-zA-Z0-9._\-]{3,60}" /></label>
-          <label>Длъжност<input name="position" defaultValue={user.position || ''} placeholder="Магистър фармацевт, Помощник-фармацевт…" /></label>
+          <label>Длъжност
+            <select name="position_id" defaultValue={user.position_id || ''}>
+              <option value="">— без длъжност —</option>
+              {positions.filter((p) => p.active || p.id === user.position_id).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{!p.active ? ' (неактивна)' : ''}</option>
+              ))}
+            </select>
+          </label>
           <label>Аптека
             <select name="pharmacy_id" defaultValue={user.pharmacy_id || ''}>
               <option value="">— без аптека —</option>

@@ -28,10 +28,11 @@ export default async function SchedulePage({ searchParams }) {
 
   const shiftTypes = await query('SELECT * FROM shift_types WHERE active = 1 ORDER BY id');
 
-  let workers = [], shifts = [], leaves = [];
+  let workers = [], shifts = [], leaves = [], notes = [];
   if (pharmacy) {
     workers = await query(
-      'SELECT id, full_name, position FROM users WHERE active = 1 AND pharmacy_id = ? ORDER BY full_name',
+      `SELECT u.id, u.full_name, pos.name position FROM users u LEFT JOIN positions pos ON pos.id = u.position_id
+        WHERE u.active = 1 AND u.pharmacy_id = ? ORDER BY pos.sort_order IS NULL, pos.sort_order, u.full_name`,
       [pharmacy.id]
     );
     const ids = workers.map((w) => w.id);
@@ -46,6 +47,12 @@ export default async function SchedulePage({ searchParams }) {
           WHERE status = 'approved' AND user_id IN (?) AND date_from <= ? AND date_to >= ?`,
         [ids, to, from]
       );
+      notes = await query(
+        `SELECT n.id, n.user_id, n.work_date, n.content, n.reply, n.created_at, r.full_name replier
+           FROM notes n LEFT JOIN users r ON r.id = n.replied_by
+          WHERE n.user_id IN (?) AND n.work_date BETWEEN ? AND ? ORDER BY n.created_at`,
+        [ids, from, to]
+      );
     }
   }
 
@@ -54,6 +61,11 @@ export default async function SchedulePage({ searchParams }) {
   const leaveMap = {};
   for (const l of leaves)
     for (const d of days) if (d.date >= l.date_from && d.date <= l.date_to) leaveMap[`${l.user_id}|${d.date}`] = LEAVE_LABEL[l.leave_type];
+
+  const noteMap = {};
+  for (const n of notes) (noteMap[`${n.user_id}|${n.work_date}`] ??= []).push({
+    id: n.id, content: n.content, reply: n.reply, replier: n.replier, created: n.created_at,
+  });
 
   // Личните смени на потребителя за месеца (във всички аптеки)
   const mine = await query(
@@ -100,6 +112,7 @@ export default async function SchedulePage({ searchParams }) {
           shiftTypes={shiftTypes.map((t) => ({ ...t, hours: Number(t.hours), start_time: fmtTime(t.start_time), end_time: fmtTime(t.end_time) }))}
           shiftMap={shiftMap}
           leaveMap={leaveMap}
+          noteMap={noteMap}
           canEdit={canEdit}
           currentUserId={user.id}
           pharmacyId={pharmacy.id}
