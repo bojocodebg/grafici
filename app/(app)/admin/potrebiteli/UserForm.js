@@ -30,6 +30,9 @@ export default function UserForm({ action, user = {}, perms = [], pharmacies, po
             <input name="password" type="password" minLength={6} required={isNew} autoComplete="new-password" />
           </label>
           <label className="check"><input type="checkbox" name="active" defaultChecked={isNew || !!user.active} /> Активен профил</label>
+          <label className="check" title="Изключете за служебни акаунти, които не работят смени (напр. admin)">
+            <input type="checkbox" name="show_in_schedule" defaultChecked={isNew || !!user.show_in_schedule} /> Участва в графиците (може да получава смени)
+          </label>
         </div>
       </section>
 

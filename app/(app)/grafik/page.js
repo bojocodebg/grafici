@@ -40,7 +40,8 @@ export default async function SchedulePage({ searchParams }) {
               (u.pharmacy_id IS NULL OR u.pharmacy_id <> ?) AS floating, hp.name home_pharmacy
          FROM users u LEFT JOIN positions pos ON pos.id = u.position_id
          LEFT JOIN pharmacies hp ON hp.id = u.pharmacy_id
-        WHERE u.active = 1 AND (u.pharmacy_id = ? OR u.pharmacy_id IS NULL OR pos.all_pharmacies = 1)
+        WHERE u.active = 1 AND u.show_in_schedule = 1
+          AND (u.pharmacy_id = ? OR u.pharmacy_id IS NULL OR pos.all_pharmacies = 1)
         ORDER BY pos.sort_order IS NULL, pos.sort_order, u.full_name`,
       [pharmacy.id, pharmacy.id]
     );

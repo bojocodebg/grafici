@@ -22,6 +22,10 @@ export async function setShift({ userId, date, shiftTypeId, pharmacyId }) {
     [userId, date]
   );
   const worker = await nameOf('users', userId, 'full_name');
+  if (shiftTypeId) {
+    const [target] = await query('SELECT active, show_in_schedule FROM users WHERE id = ?', [userId]);
+    if (!target?.active || !target.show_in_schedule) return { error: 'Този потребител не участва в графиците.' };
+  }
 
   if (!shiftTypeId) {
     // Изтриване е позволено винаги (вкл. ден с отпуск – за почистване на стари записи)
@@ -67,7 +71,7 @@ export async function copyPreviousMonth({ pharmacyId, year, month }) {
   const days = monthDays(year, month);
   const rows = await query(
     `SELECT s.user_id, DAY(s.work_date) d, s.shift_type_id FROM shifts s
-       JOIN users u ON u.id = s.user_id AND u.active = 1
+       JOIN users u ON u.id = s.user_id AND u.active = 1 AND u.show_in_schedule = 1
       WHERE s.pharmacy_id = ? AND s.work_date BETWEEN ? AND ?`,
     [pharmacyId, prevDays[0].date, prevDays.at(-1).date]
   );

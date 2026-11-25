@@ -9,7 +9,7 @@ import { audit, diff } from '@/lib/audit';
 
 const FIELDS = {
   username: 'Потребителско име', full_name: 'Име', position: 'Длъжност', pharmacy: 'Аптека',
-  phone: 'Телефон', email: 'Имейл', is_admin: 'Администратор', active: 'Активен', permissions: 'Права',
+  phone: 'Телефон', email: 'Имейл', is_admin: 'Администратор', show_in_schedule: 'Участва в графиците', active: 'Активен', permissions: 'Права',
 };
 
 // Четим „човешки“ вид на потребителя за журнала (имена вместо id)
@@ -19,10 +19,17 @@ async function snapshot(u, perms) {
   const [ph] = u.pharmacy_id ? await query('SELECT name FROM pharmacies WHERE id = ?', [u.pharmacy_id]) : [];
   return {
     username: u.username, full_name: u.full_name, position: pos?.name, pharmacy: ph?.name,
-    phone: u.phone, email: u.email, is_admin: u.is_admin ? 'да' : 'не', active: u.active ? 'да' : 'не',
+    phone: u.phone, email: u.email, is_admin: u.is_admin ? 'да' : 'не', show_in_schedule: u.show_in_schedule ? 'да' : 'не', active: u.active ? 'да' : 'не',
     permissions: perms.map((p) => PERMISSIONS[p] || p).sort().join('; ') || null,
   };
 }
+// Потребител, който има смени в графиците, не може да бъде изтрит
+async function userShiftCount(id) {
+  const [{ c }] = await query('SELECT COUNT(*) c FROM shifts WHERE user_id = ?', [id]);
+  return c;
+}
+const SCHEDULE_BLOCK_MSG = 'Потребителят не може да бъде изтрит, понеже присъства в графиците';
+
 async function loadUser(id) {
   const [u] = await query('SELECT * FROM users WHERE id = ?', [id]);
   if (!u) return null;
@@ -42,6 +49,7 @@ function readForm(fd) {
     pharmacy_id: Number(fd.get('pharmacy_id')) || null,
     active: fd.get('active') ? 1 : 0,
     is_admin: fd.get('is_admin') ? 1 : 0,
+    show_in_schedule: fd.get('show_in_schedule') ? 1 : 0,
     password: String(fd.get('password') || ''),
     permissions: fd.getAll('permissions').map(String).filter((p) => PERMISSION_KEYS.includes(p)),
   };
@@ -68,8 +76,8 @@ export async function createUser(formData) {
   try {
     await conn.beginTransaction();
     const [res] = await conn.query(
-      'INSERT INTO users (username, password_hash, full_name, position_id, phone, email, pharmacy_id, is_admin, active) VALUES (?,?,?,?,?,?,?,?,?)',
-      [f.username, await bcrypt.hash(f.password, 10), f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.active]
+      'INSERT INTO users (username, password_hash, full_name, position_id, phone, email, pharmacy_id, is_admin, show_in_schedule, active) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [f.username, await bcrypt.hash(f.password, 10), f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.active]
     );
     id = res.insertId;
     await savePermissions(conn, id, f.permissions);
@@ -105,8 +113,8 @@ export async function updateUser(id, formData) {
   try {
     await conn.beginTransaction();
     await conn.query(
-      'UPDATE users SET username=?, full_name=?, position_id=?, phone=?, email=?, pharmacy_id=?, is_admin=?, active=? WHERE id=?',
-      [f.username, f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.active, id]
+      'UPDATE users SET username=?, full_name=?, position_id=?, phone=?, email=?, pharmacy_id=?, is_admin=?, show_in_schedule=?, active=? WHERE id=?',
+      [f.username, f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.active, id]
     );
     if (f.password) await conn.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(f.password, 10), id]);
     await savePermissions(conn, id, f.permissions);
@@ -129,6 +137,7 @@ export async function deleteUser(id) {
   if (id === me.id) go(`/admin/potrebiteli/${id}`, 'error', 'Не можете да изтриете собствения си профил.');
   const [target] = await query('SELECT is_admin FROM users WHERE id = ?', [id]);
   if (target?.is_admin && !me.is_admin) go(`/admin/potrebiteli/${id}`, 'error', 'Само администратор може да изтрие администратор.');
+  if (await userShiftCount(id)) go(`/admin/potrebiteli/${id}`, 'error', SCHEDULE_BLOCK_MSG);
   const before = await loadUser(id);
   await query('DELETE FROM users WHERE id = ?', [id]);
   if (before) await audit(me, 'delete', 'user', id, `Изтрит потребител „${before.u.full_name}“ (${before.u.username}) заедно със смените, забележките и отпуските му`,

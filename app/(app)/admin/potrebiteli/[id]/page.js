@@ -27,6 +27,8 @@ export default async function UserEditPage({ params, searchParams }) {
   const [user] = await query('SELECT * FROM users WHERE id = ?', [uid]);
   if (!user) notFound();
   const perms = (await query('SELECT permission FROM user_permissions WHERE user_id = ?', [uid])).map((p) => p.permission);
+  const [{ shifts }] = await query('SELECT COUNT(*) shifts FROM shifts WHERE user_id = ?', [uid]);
+  const inSchedule = shifts > 0;
 
   return (
     <div className="stack-lg">
@@ -34,7 +36,15 @@ export default async function UserEditPage({ params, searchParams }) {
         <h1>{user.full_name}</h1>
         {uid !== me.id && (
           <form action={deleteUser.bind(null, uid)}>
-            <SubmitButton className="btn danger" confirm="Изтриване на потребителя заедно с неговите смени, забележки и отпуски? (За напуснали служители е по-добре да деактивирате профила.)">Изтрий</SubmitButton>
+            {inSchedule ? (
+              // Изключеният бутон не реагира на мишката, затова балонът е върху обвивката
+              <span className="tip-wrap" tabIndex={0} data-tip="Потребителят не може да бъде изтрит, понеже присъства в графиците">
+                <button type="button" className="btn danger" disabled aria-describedby="del-tip">Изтрий</button>
+                <span id="del-tip" className="sr-only">Потребителят не може да бъде изтрит, понеже присъства в графиците</span>
+              </span>
+            ) : (
+              <SubmitButton className="btn danger" confirm="Изтриване на потребителя заедно с неговите забележки и отпуски? (За напуснали служители е по-добре да деактивирате профила.)">Изтрий</SubmitButton>
+            )}
           </form>
         )}
       </div>

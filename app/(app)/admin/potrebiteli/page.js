@@ -10,7 +10,7 @@ export default async function UsersPage({ searchParams }) {
   const sp = await searchParams;
   await requirePermission('users.manage');
   const users = await query(
-    `SELECT u.id, u.username, u.full_name, pos.name position, u.is_admin, u.active, p.name pharmacy,
+    `SELECT u.id, u.username, u.full_name, pos.name position, u.is_admin, u.active, u.show_in_schedule, p.name pharmacy,
             GROUP_CONCAT(up.permission) perms
        FROM users u LEFT JOIN pharmacies p ON p.id = u.pharmacy_id
        LEFT JOIN positions pos ON pos.id = u.position_id
@@ -39,7 +39,10 @@ export default async function UsersPage({ searchParams }) {
                     : u.perms ? u.perms.split(',').map((p) => <span key={p} className="badge" title={PERMISSIONS[p]}>{PERMISSIONS[p] || p}</span>)
                     : <span className="muted">Служител</span>}
                 </td>
-                <td data-label="Статус">{u.active ? <span className="badge ok">Активен</span> : <span className="badge bad">Неактивен</span>}</td>
+                <td data-label="Статус">
+                  {u.active ? <span className="badge ok">Активен</span> : <span className="badge bad">Неактивен</span>}
+                  {!u.show_in_schedule && <span className="badge" title="Не се показва в графиците">Извън графиците</span>}
+                </td>
                 <td className="actions-cell"><Link className="btn sm" href={`/admin/potrebiteli/${u.id}`}>Редакция</Link></td>
               </tr>
             ))}

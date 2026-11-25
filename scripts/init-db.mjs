@@ -53,6 +53,11 @@ if (!(await hasCol('positions', 'all_pharmacies'))) {
   await conn.query("UPDATE positions SET all_pharmacies = 1 WHERE name = 'Управител'");
   console.log('✔ Миграция: длъжностите могат да работят във всички аптеки („Управител“ – включено)');
 }
+if (!(await hasCol('users', 'show_in_schedule'))) {
+  await conn.query('ALTER TABLE users ADD COLUMN show_in_schedule TINYINT(1) NOT NULL DEFAULT 1 AFTER is_admin');
+  await conn.query("UPDATE users SET show_in_schedule = 0 WHERE username = 'admin'");
+  console.log('✔ Миграция: служебният акаунт admin вече не се показва в графиците');
+}
 if (await hasCol('users', 'position')) {
   // Старите текстови длъжности стават записи в таблицата "positions"
   await conn.query("INSERT IGNORE INTO positions (name) SELECT DISTINCT TRIM(position) FROM users WHERE position IS NOT NULL AND TRIM(position) <> ''");
@@ -96,7 +101,7 @@ const [[{ c: uc }]] = await conn.query('SELECT COUNT(*) c FROM users WHERE usern
 if (uc === 0) {
   const hash = await bcrypt.hash('admin123', 10);
   await conn.query(
-    "INSERT INTO users (username, password_hash, full_name, position_id, is_admin) VALUES (?,?,?,(SELECT id FROM positions WHERE name = 'Управител'),1)",
+    "INSERT INTO users (username, password_hash, full_name, position_id, is_admin, show_in_schedule) VALUES (?,?,?,(SELECT id FROM positions WHERE name = 'Управител'),1,0)",
     ['admin', hash, 'Администратор']
   );
   console.log('✔ Създаден администратор: admin / admin123 (сменете паролата след вход!)');
