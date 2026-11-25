@@ -17,7 +17,7 @@ export default async function UsersPage({ searchParams }) {
        FROM users u LEFT JOIN pharmacies p ON p.id = u.pharmacy_id
        LEFT JOIN positions pos ON pos.id = u.position_id
        LEFT JOIN user_permissions up ON up.user_id = u.id
-      GROUP BY u.id ORDER BY u.active DESC, u.show_in_schedule DESC, u.sort_order, u.full_name`
+      GROUP BY u.id ORDER BY u.sort_order, u.full_name`
   );
   return (
     <div className="stack-lg">
