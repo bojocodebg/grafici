@@ -8,7 +8,7 @@ import { PERMISSION_KEYS, PERMISSIONS } from '@/lib/permissions';
 import { audit, diff } from '@/lib/audit';
 
 const FIELDS = {
-  username: 'Потребителско име', full_name: 'Име', position: 'Длъжност', pharmacy: 'Аптека',
+  username: 'Потребителско име', full_name: 'Име', sort_order: 'Ред в графика', position: 'Длъжност', pharmacy: 'Аптека',
   phone: 'Телефон', email: 'Имейл', is_admin: 'Администратор', show_in_schedule: 'Участва в графиците', active: 'Активен', permissions: 'Права',
 };
 
@@ -18,7 +18,7 @@ async function snapshot(u, perms) {
   const [pos] = u.position_id ? await query('SELECT name FROM positions WHERE id = ?', [u.position_id]) : [];
   const [ph] = u.pharmacy_id ? await query('SELECT name FROM pharmacies WHERE id = ?', [u.pharmacy_id]) : [];
   return {
-    username: u.username, full_name: u.full_name, position: pos?.name, pharmacy: ph?.name,
+    username: u.username, full_name: u.full_name, sort_order: u.sort_order, position: pos?.name, pharmacy: ph?.name,
     phone: u.phone, email: u.email, is_admin: u.is_admin ? 'да' : 'не', show_in_schedule: u.show_in_schedule ? 'да' : 'не', active: u.active ? 'да' : 'не',
     permissions: perms.map((p) => PERMISSIONS[p] || p).sort().join('; ') || null,
   };
@@ -50,6 +50,7 @@ function readForm(fd) {
     active: fd.get('active') ? 1 : 0,
     is_admin: fd.get('is_admin') ? 1 : 0,
     show_in_schedule: fd.get('show_in_schedule') ? 1 : 0,
+    sort_order: Math.trunc(Number(fd.get('sort_order'))) || 0,
     password: String(fd.get('password') || ''),
     permissions: fd.getAll('permissions').map(String).filter((p) => PERMISSION_KEYS.includes(p)),
   };
@@ -76,8 +77,8 @@ export async function createUser(formData) {
   try {
     await conn.beginTransaction();
     const [res] = await conn.query(
-      'INSERT INTO users (username, password_hash, full_name, position_id, phone, email, pharmacy_id, is_admin, show_in_schedule, active) VALUES (?,?,?,?,?,?,?,?,?,?)',
-      [f.username, await bcrypt.hash(f.password, 10), f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.active]
+      'INSERT INTO users (username, password_hash, full_name, position_id, phone, email, pharmacy_id, is_admin, show_in_schedule, sort_order, active) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      [f.username, await bcrypt.hash(f.password, 10), f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.sort_order, f.active]
     );
     id = res.insertId;
     await savePermissions(conn, id, f.permissions);
@@ -113,8 +114,8 @@ export async function updateUser(id, formData) {
   try {
     await conn.beginTransaction();
     await conn.query(
-      'UPDATE users SET username=?, full_name=?, position_id=?, phone=?, email=?, pharmacy_id=?, is_admin=?, show_in_schedule=?, active=? WHERE id=?',
-      [f.username, f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.active, id]
+      'UPDATE users SET username=?, full_name=?, position_id=?, phone=?, email=?, pharmacy_id=?, is_admin=?, show_in_schedule=?, sort_order=?, active=? WHERE id=?',
+      [f.username, f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.sort_order, f.active, id]
     );
     if (f.password) await conn.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(f.password, 10), id]);
     await savePermissions(conn, id, f.permissions);
@@ -144,4 +145,24 @@ export async function deleteUser(id) {
     diff(await snapshot(before.u, before.perms), {}, FIELDS));
   revalidatePath('/admin/potrebiteli');
   go('/admin/potrebiteli', 'ok', 'Потребителят е изтрит.');
+}
+
+// Запазва реда в графика за много потребители наведнъж (от списъка с потребители)
+export async function saveOrder(formData) {
+  const me = await requirePermission('users.manage');
+  const rows = await query('SELECT id, full_name, sort_order FROM users');
+  const changes = {};
+  for (const u of rows) {
+    const raw = formData.get(`order_${u.id}`);
+    if (raw === null || raw === '') continue;
+    const v = Math.trunc(Number(raw));
+    if (!Number.isFinite(v) || v === u.sort_order) continue;
+    await query('UPDATE users SET sort_order = ? WHERE id = ?', [v, u.id]);
+    changes[u.full_name] = [String(u.sort_order), String(v)];
+  }
+  const n = Object.keys(changes).length;
+  if (n) await audit(me, 'update', 'user', null, `Променена подредба в графика (${n} потребител${n === 1 ? '' : 'я'})`, changes);
+  revalidatePath('/admin/potrebiteli');
+  revalidatePath('/grafik');
+  go('/admin/potrebiteli', 'ok', n ? `Подредбата е запазена (${n} ${n === 1 ? 'промяна' : 'промени'}).` : 'Няма промени в подредбата.');
 }

@@ -42,7 +42,7 @@ export default async function SchedulePage({ searchParams }) {
          LEFT JOIN pharmacies hp ON hp.id = u.pharmacy_id
         WHERE u.active = 1 AND u.show_in_schedule = 1
           AND (u.pharmacy_id = ? OR u.pharmacy_id IS NULL OR pos.all_pharmacies = 1)
-        ORDER BY pos.sort_order IS NULL, pos.sort_order, u.full_name`,
+        ORDER BY u.sort_order, u.full_name`,
       [pharmacy.id, pharmacy.id]
     );
     workers = workers.map((w) => ({ ...w, floating: !!w.floating }));

@@ -533,3 +533,4 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .tip-wrap:hover::after, .tip-wrap:focus::after, .tip-wrap:focus-within::after,
 .tip-wrap:hover::before, .tip-wrap:focus::before, .tip-wrap:focus-within::before { opacity: 1; visibility: visible; transform: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.order-input { width: 5rem; min-height: 2.2rem; padding: 0.3rem 0.5rem; }

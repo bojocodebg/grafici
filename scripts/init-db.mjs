@@ -58,6 +58,16 @@ if (!(await hasCol('users', 'show_in_schedule'))) {
   await conn.query("UPDATE users SET show_in_schedule = 0 WHERE username = 'admin'");
   console.log('✔ Миграция: служебният акаунт admin вече не се показва в графиците');
 }
+if (!(await hasCol('users', 'sort_order'))) {
+  await conn.query('ALTER TABLE users ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER show_in_schedule');
+  // начална подредба = досегашната (по длъжност, после по име), през 10 – за лесно вмъкване между тях
+  const [rows] = await conn.query(
+    `SELECT u.id FROM users u LEFT JOIN positions p ON p.id = u.position_id
+      ORDER BY p.sort_order IS NULL, p.sort_order, u.full_name`
+  );
+  for (const [i, r] of rows.entries()) await conn.query('UPDATE users SET sort_order = ? WHERE id = ?', [(i + 1) * 10, r.id]);
+  console.log('✔ Миграция: добавен ред (sort_order) на потребителите');
+}
 if (await hasCol('users', 'position')) {
   // Старите текстови длъжности стават записи в таблицата "positions"
   await conn.query("INSERT IGNORE INTO positions (name) SELECT DISTINCT TRIM(position) FROM users WHERE position IS NOT NULL AND TRIM(position) <> ''");

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { PERMISSIONS } from '@/lib/permissions';
 import SubmitButton from '@/app/components/SubmitButton';
 
-export default function UserForm({ action, user = {}, perms = [], pharmacies, positions, isNew, canGrantAdmin }) {
+export default function UserForm({ action, user = {}, perms = [], pharmacies, positions, isNew, canGrantAdmin, nextOrder = 10 }) {
   return (
     <form action={action} className="stack-lg">
       <section className="card">
@@ -23,6 +23,9 @@ export default function UserForm({ action, user = {}, perms = [], pharmacies, po
               <option value="">— без аптека (всички аптеки) —</option>
               {pharmacies.map((p) => <option key={p.id} value={p.id}>{p.name}{!p.active ? ' (неактивна)' : ''}</option>)}
             </select>
+          </label>
+          <label title="По-малкото число е по-напред в графика">Ред в графика
+            <input name="sort_order" type="number" step="1" defaultValue={user.sort_order ?? nextOrder} />
           </label>
           <label>Телефон<input name="phone" defaultValue={user.phone || ''} /></label>
           <label>Имейл<input name="email" type="email" defaultValue={user.email || ''} /></label>
