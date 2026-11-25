@@ -6,7 +6,7 @@ import { setShift, copyPreviousMonth, clearMonth } from './actions';
 
 const ADMIN_ROW = { id: 'admin', full_name: 'Администрация' };
 
-export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leaveMap, noteMap = {}, canEdit, currentUserId, pharmacyId, year, month, today }) {
+export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leaveMap, noteMap = {}, canEdit, currentUserId, pharmacyId, pharmacyName, year, month, today }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [picker, setPicker] = useState(null); // { userId, date, name }
@@ -21,6 +21,8 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
   const types = useMemo(() => Object.fromEntries(shiftTypes.map((t) => [t.id, t])), [shiftTypes]);
 
   const cellValue = (key) => (key in local ? local[key] : shiftMap[key]?.typeId ?? null);
+  // Смяна, записана в ДРУГА аптека (за служители, които работят във всички аптеки)
+  const otherPharmacy = (key) => (!(key in local) && shiftMap[key] && shiftMap[key].pharmacyId !== pharmacyId ? shiftMap[key].pharmacy : null);
 
   function save(userId, date, typeId) {
     const key = `${userId}|${date}`;
@@ -46,9 +48,15 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
       if (cellValue(key) !== null && confirm(`${w.full_name} е в одобрен отпуск на ${d.day}.${String(month).padStart(2, '0')}. Да се изтрие ли записаната смяна?`)) save(w.id, d.date, null);
       return;
     }
+    const elsewhere = otherPharmacy(key);
+    if (elsewhere) {
+      const t = types[cellValue(key)];
+      const what = brush === 0 ? 'изтриете' : `промените и преместите в ${pharmacyName}`;
+      if (!confirm(`${w.full_name} вече има смяна ${t?.code || ''} в ${elsewhere} на ${d.day}.${String(month).padStart(2, '0')}.\nИскате ли да я ${what}?`)) return;
+    }
     if (brush !== null) {
-      save(w.id, d.date, cellValue(key) === brush || brush === 0 ? null : brush);
-    } else setPicker({ userId: w.id, date: d.date, name: w.full_name, weekday: d.weekday, day: d.day });
+      save(w.id, d.date, (!elsewhere && cellValue(key) === brush) || brush === 0 ? null : brush);
+    } else setPicker({ userId: w.id, date: d.date, name: w.full_name, weekday: d.weekday, day: d.day, elsewhere });
   }
 
   function showTip(e, w, d) {
@@ -65,23 +73,24 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
   // Обобщение за служителя: часове по тип смяна + общо
   function summary(w) {
     const by = {};
-    let total = 0;
+    let total = 0, elsewhere = 0;
     for (const d of days) {
       const t = types[cellValue(`${w.id}|${d.date}`)];
       if (!t) continue;
       total += t.hours;
+      if (otherPharmacy(`${w.id}|${d.date}`)) elsewhere += t.hours;
       if (t.hours <= 0) continue;
       by[t.id] ??= { t, count: 0, hours: 0 };
       by[t.id].count++;
       by[t.id].hours += t.hours;
     }
-    return { list: shiftTypes.filter((t) => by[t.id]).map((t) => by[t.id]), total };
+    return { list: shiftTypes.filter((t) => by[t.id]).map((t) => by[t.id]), total, elsewhere };
   }
 
   // Брой хора на смяна за всеки ден (за контрол на покритието 24/7)
   const coverage = days.map((d) =>
     workers.reduce((acc, w) => {
-      const t = types[cellValue(`${w.id}|${d.date}`)];
+      const t = otherPharmacy(`${w.id}|${d.date}`) ? null : types[cellValue(`${w.id}|${d.date}`)];
       if (t && t.hours > 0) acc[t.code] = (acc[t.code] || 0) + 1;
       return acc;
     }, {})
@@ -145,6 +154,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                     <th className="sticky name">
                       {w.full_name}
                       {w.position && <small>{w.position}</small>}
+                      {w.floating && <small className="float-tag" title="Може да получава смени във всички аптеки">⇄ {w.home_pharmacy ? `от ${w.home_pharmacy}` : 'всички аптеки'}</small>}
                       <div className="sum">
                         {sum.list.map(({ t, count, hours }) => (
                           <span key={t.id} title={`${t.name}: ${count} бр. смени, ${hours} ч`}>
@@ -152,12 +162,13 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                           </span>
                         ))}
                         <b>Общо: {sum.total} ч</b>
+                        {sum.elsewhere > 0 && <span className="muted" title="Включени в общото">(в др. аптеки: {sum.elsewhere} ч)</span>}
                       </div>
                     </th>
                     {days.map((d) => {
                       const key = `${w.id}|${d.date}`;
                       const t = types[cellValue(key)];
-                      const other = shiftMap[key] && shiftMap[key].pharmacyId !== pharmacyId && !(key in local);
+                      const other = otherPharmacy(key);
                       const leave = leaveMap[key];
                       const cellNotes = noteMap[key];
                       const locked = !!leave;
@@ -166,7 +177,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                           key={d.date}
                           className={`${d.weekend ? 'we' : ''} ${d.date === today ? 'today' : ''} ${canEdit && !locked ? 'editable' : ''} ${locked ? 'locked' : ''} ${locked && t ? 'conflict' : ''}`}
                           onClick={() => onCell(w, d)}
-                          title={locked ? `${leave} – не може да се добавя смяна${t ? ` (записана смяна: ${t.name} – кликнете, за да я изтриете)` : ''}` : t ? `${t.name}${t.start_time ? ` ${t.start_time}–${t.end_time}` : ''}${other ? ' (друга аптека)' : ''}` : ''}
+                          title={locked ? `${leave} – не може да се добавя смяна${t ? ` (записана смяна: ${t.name} – кликнете, за да я изтриете)` : ''}` : t ? `${t.name}${t.start_time ? ` ${t.start_time}–${t.end_time}` : ''}${other ? ` (в ${other})` : ''}` : ''}
                         >
                           {t ? (
                             <span className={`chip ${other ? 'other' : ''}`} style={{ background: t.color }}>{t.code}</span>
@@ -233,12 +244,13 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
             <ul>
               {workers.map((w) => (
                 <li key={w.id} className={w.id === currentUserId ? 'me' : ''}>
-                  <span className="who"><b>{w.full_name}</b>{w.position && <small>{w.position}</small>}</span>
+                  <span className="who"><b>{w.full_name}</b>{w.position && <small>{w.position}</small>}{w.floating && <small className="float-tag">⇄ {w.home_pharmacy ? `от ${w.home_pharmacy}` : 'всички аптеки'}</small>}</span>
                   <span className="sum">
                     {sums[w.id].list.map(({ t, hours }) => (
                       <span key={t.id}><i style={{ background: t.color }} />{t.code}: {hours} ч</span>
                     ))}
                     <b>Общо: {sums[w.id].total} ч</b>
+                    {sums[w.id].elsewhere > 0 && <span className="muted">(в др. аптеки: {sums[w.id].elsewhere} ч)</span>}
                   </span>
                 </li>
               ))}
@@ -261,6 +273,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                       const leave = leaveMap[key];
                       const cellNotes = noteMap[key];
                       const editable = canEdit && !leave;
+                      const other = otherPharmacy(key);
                       return (
                         <li key={w.id} className={`${w.id === currentUserId ? 'me' : ''} ${leave && t ? 'conflict' : ''}`}>
                           <button
@@ -272,7 +285,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
                           >
                             <span className="who">{w.full_name}</span>
                             {t ? (
-                              <span className="what"><span className="chip" style={{ background: t.color }}>{t.code}</span><span className="tname">{t.name}{t.start_time && <small> {t.start_time}–{t.end_time}</small>}</span></span>
+                              <span className={`what ${other ? 'elsewhere' : ''}`}><span className={`chip ${other ? 'other' : ''}`} style={{ background: t.color }}>{t.code}</span><span className="tname">{other ? <>в {other}</> : t.name}{!other && t.start_time && <small> {t.start_time}–{t.end_time}</small>}</span></span>
                             ) : leave ? (
                               <span className="what"><span className="chip leave">О</span><span className="tname">{leave}</span></span>
                             ) : (
@@ -340,7 +353,8 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
         <div className="modal-bg" onClick={() => setPicker(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{picker.name}</h3>
-            <p className="muted">{picker.weekday}, {picker.day}.{String(month).padStart(2, '0')}.{year}</p>
+            <p className="muted">{picker.weekday}, {picker.day}.{String(month).padStart(2, '0')}.{year} · {pharmacyName}</p>
+            {picker.elsewhere && <div className="alert">Има смяна в {picker.elsewhere} на тази дата. Изборът тук ще я премести в {pharmacyName}; „Изчисти“ ще я изтрие.</div>}
             <div className="pick-list">
               {shiftTypes.map((t) => (
                 <button key={t.id} className="btn pick" onClick={() => { save(picker.userId, picker.date, t.id); setPicker(null); }}>

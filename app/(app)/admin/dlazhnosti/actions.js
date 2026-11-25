@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { audit, diff } from '@/lib/audit';
 
-const FIELDS = { name: 'Наименование', sort_order: 'Ред', active: 'Активна' };
+const FIELDS = { name: 'Наименование', sort_order: 'Ред', all_pharmacies: 'Във всички аптеки', active: 'Активна' };
 
 const PATH = '/admin/dlazhnosti';
 const go = (k, msg) => redirect(`${PATH}?${k}=${encodeURIComponent(msg)}`);
@@ -13,6 +13,7 @@ const go = (k, msg) => redirect(`${PATH}?${k}=${encodeURIComponent(msg)}`);
 const read = (fd) => ({
   name: String(fd.get('name') || '').trim().slice(0, 100),
   sort_order: Number(fd.get('sort_order')) || 0,
+  all_pharmacies: fd.get('all_pharmacies') ? 1 : 0,
   active: fd.get('active') ? 1 : 0,
 });
 
@@ -26,7 +27,7 @@ export async function createPosition(formData) {
   const f = read(formData);
   if (!f.name) go('error', 'Въведете наименование.');
   if (await nameTaken(f.name)) go('error', `Длъжност „${f.name}“ вече съществува.`);
-  const res = await query('INSERT INTO positions (name, sort_order, active) VALUES (?,?,1)', [f.name, f.sort_order]);
+  const res = await query('INSERT INTO positions (name, sort_order, all_pharmacies, active) VALUES (?,?,?,1)', [f.name, f.sort_order, f.all_pharmacies]);
   await audit(user, 'create', 'position', res.insertId, `Добавена длъжност „${f.name}“`, diff({}, { ...f, active: 1 }, FIELDS));
   revalidatePath(PATH);
   go('ok', `Длъжността „${f.name}“ е добавена.`);
@@ -40,7 +41,7 @@ export async function updatePosition(id, formData) {
   const [old] = await query('SELECT * FROM positions WHERE id = ?', [id]);
   const changes = diff(old, f, FIELDS);
   if (Object.keys(changes).length) await audit(user, 'update', 'position', id, `Редактирана длъжност „${f.name}“`, changes);
-  await query('UPDATE positions SET name = ?, sort_order = ?, active = ? WHERE id = ?', [f.name, f.sort_order, f.active, id]);
+  await query('UPDATE positions SET name = ?, sort_order = ?, all_pharmacies = ?, active = ? WHERE id = ?', [f.name, f.sort_order, f.all_pharmacies, f.active, id]);
   revalidatePath(PATH);
   go('ok', 'Промените са записани.');
 }

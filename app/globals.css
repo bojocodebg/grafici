@@ -508,3 +508,8 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .table td { overflow-wrap: break-word; }
 .table-wrap { overflow-x: auto; }
 .stack-sm > .badge, .stack > .badge { align-self: flex-start; }
+
+/* Служители, които работят във всички аптеки */
+.float-tag { display: block; color: #5b4bb5 !important; font-size: var(--fs-xs); font-weight: 500; }
+.agenda-summary .float-tag { display: inline; margin-left: 0.4rem; }
+.day-row .what.elsewhere { color: var(--muted); font-style: italic; }

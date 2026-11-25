@@ -18,7 +18,7 @@ export default async function PositionsPage({ searchParams }) {
       <div className="page-head">
         <div>
           <h1>Длъжности</h1>
-          <p className="muted">Длъжностите се избират в профила на всеки служител. Подредбата определя реда на служителите в графика.</p>
+          <p className="muted">Длъжностите се избират в профила на всеки служител. Подредбата определя реда на служителите в графика. Служителите с длъжност „Във всички аптеки“ (напр. управител) и тези без зачислена аптека могат да получават смени във всяка аптека.</p>
         </div>
       </div>
       <Flash sp={sp} />
@@ -27,6 +27,7 @@ export default async function PositionsPage({ searchParams }) {
         <form action={createPosition} className="row-form">
           <input name="name" placeholder="Наименование *" required maxLength={100} />
           <label className="tiny">ред<input name="sort_order" type="number" defaultValue={0} className="w-num" /></label>
+          <label className="check" title="Служителите с тази длъжност могат да получават смени във всички аптеки"><input type="checkbox" name="all_pharmacies" /> Във всички аптеки</label>
           <SubmitButton>Добави</SubmitButton>
         </form>
       </section>
@@ -39,6 +40,7 @@ export default async function PositionsPage({ searchParams }) {
               <form action={updatePosition.bind(null, p.id)} className="row-form grow">
                 <input name="name" defaultValue={p.name} required maxLength={100} />
                 <label className="tiny">ред<input name="sort_order" type="number" defaultValue={p.sort_order} className="w-num" /></label>
+                <label className="check" title="Служителите с тази длъжност могат да получават смени във всички аптеки"><input type="checkbox" name="all_pharmacies" defaultChecked={!!p.all_pharmacies} /> Във всички аптеки</label>
                 <label className="check"><input type="checkbox" name="active" defaultChecked={!!p.active} /> Активна</label>
                 <span className="muted nowrap">{p.users} служ.</span>
                 <SubmitButton className="btn">Запиши</SubmitButton>

@@ -48,6 +48,11 @@ if (!(await hasCol('shift_types', 'sort_order'))) {
   await conn.query('UPDATE shift_types SET sort_order = id'); // запазва досегашната подредба
   console.log('✔ Миграция: добавена подредба (sort_order) на типовете смени');
 }
+if (!(await hasCol('positions', 'all_pharmacies'))) {
+  await conn.query('ALTER TABLE positions ADD COLUMN all_pharmacies TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order');
+  await conn.query("UPDATE positions SET all_pharmacies = 1 WHERE name = 'Управител'");
+  console.log('✔ Миграция: длъжностите могат да работят във всички аптеки („Управител“ – включено)');
+}
 if (await hasCol('users', 'position')) {
   // Старите текстови длъжности стават записи в таблицата "positions"
   await conn.query("INSERT IGNORE INTO positions (name) SELECT DISTINCT TRIM(position) FROM users WHERE position IS NOT NULL AND TRIM(position) <> ''");
@@ -68,8 +73,8 @@ if (pc === 0) {
 const [[{ c: posc }]] = await conn.query('SELECT COUNT(*) c FROM positions');
 if (posc === 0) {
   await conn.query(
-    `INSERT INTO positions (name, sort_order) VALUES
-     ('Управител', 1), ('Магистър фармацевт', 2), ('Помощник-фармацевт', 3), ('Санитар', 4)`
+    `INSERT INTO positions (name, sort_order, all_pharmacies) VALUES
+     ('Управител', 1, 1), ('Магистър фармацевт', 2, 0), ('Помощник-фармацевт', 3, 0), ('Санитар', 4, 0)`
   );
   console.log('✔ Добавени длъжности.');
 }

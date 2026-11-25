@@ -19,28 +19,38 @@ export default async function SchedulePage({ searchParams }) {
   const days = monthDays(year, month);
   const from = days[0].date, to = days.at(-1).date;
 
-  const pharmacies = viewAll
+  // Може да избира аптека: с право за всички графици, или ако самият той работи във всички аптеки
+  const chooseAny = viewAll || user.all_pharmacies;
+  const pharmacies = chooseAny
     ? await query('SELECT id, name FROM pharmacies WHERE active = 1 ORDER BY name')
     : user.pharmacy_id ? [{ id: user.pharmacy_id, name: user.pharmacy_name }] : [];
 
   let pharmacyId = Number(sp.a) || user.pharmacy_id || pharmacies[0]?.id;
-  if (!viewAll) pharmacyId = user.pharmacy_id;
+  if (!chooseAny) pharmacyId = user.pharmacy_id;
   const pharmacy = pharmacies.find((p) => p.id === pharmacyId) || pharmacies[0];
 
   const shiftTypes = await query('SELECT * FROM shift_types WHERE active = 1 ORDER BY sort_order, id');
 
   let workers = [], shifts = [], leaves = [], notes = [], mgmtNotes = [];
   if (pharmacy) {
+    // Служителите на аптеката + тези, които могат да работят във всички аптеки
+    // (длъжност с отметка „Във всички аптеки“, напр. управител, или без зачислена аптека)
     workers = await query(
-      `SELECT u.id, u.full_name, pos.name position FROM users u LEFT JOIN positions pos ON pos.id = u.position_id
-        WHERE u.active = 1 AND u.pharmacy_id = ? ORDER BY pos.sort_order IS NULL, pos.sort_order, u.full_name`,
-      [pharmacy.id]
+      `SELECT u.id, u.full_name, pos.name position, u.pharmacy_id,
+              (u.pharmacy_id IS NULL OR u.pharmacy_id <> ?) AS floating, hp.name home_pharmacy
+         FROM users u LEFT JOIN positions pos ON pos.id = u.position_id
+         LEFT JOIN pharmacies hp ON hp.id = u.pharmacy_id
+        WHERE u.active = 1 AND (u.pharmacy_id = ? OR u.pharmacy_id IS NULL OR pos.all_pharmacies = 1)
+        ORDER BY pos.sort_order IS NULL, pos.sort_order, u.full_name`,
+      [pharmacy.id, pharmacy.id]
     );
+    workers = workers.map((w) => ({ ...w, floating: !!w.floating }));
     const ids = workers.map((w) => w.id);
     if (ids.length) {
       shifts = await query(
-        `SELECT s.user_id, s.work_date, s.shift_type_id, s.pharmacy_id
-           FROM shifts s WHERE s.user_id IN (?) AND s.work_date BETWEEN ? AND ?`,
+        `SELECT s.user_id, s.work_date, s.shift_type_id, s.pharmacy_id, p.name pharmacy
+           FROM shifts s JOIN pharmacies p ON p.id = s.pharmacy_id
+          WHERE s.user_id IN (?) AND s.work_date BETWEEN ? AND ?`,
         [ids, from, to]
       );
       leaves = await query(
@@ -67,7 +77,7 @@ export default async function SchedulePage({ searchParams }) {
   }
 
   const shiftMap = {};
-  for (const s of shifts) shiftMap[`${s.user_id}|${s.work_date}`] = { typeId: s.shift_type_id, pharmacyId: s.pharmacy_id };
+  for (const s of shifts) shiftMap[`${s.user_id}|${s.work_date}`] = { typeId: s.shift_type_id, pharmacyId: s.pharmacy_id, pharmacy: s.pharmacy };
   const leaveMap = {};
   for (const l of leaves)
     for (const d of days) if (d.date >= l.date_from && d.date <= l.date_to) leaveMap[`${l.user_id}|${d.date}`] = LEAVE_LABEL[l.leave_type];
@@ -100,10 +110,10 @@ export default async function SchedulePage({ searchParams }) {
           <p className="muted">{pharmacy ? pharmacy.name : 'Нямате зададена аптека'}{!canEdit && ' · само за преглед'}</p>
         </div>
         <div className="toolbar no-print">
-          <Link className="btn" href={q(shiftMonth(year, month, -1), viewAll && pharmacy?.id)}>‹ Предходен</Link>
-          <Link className="btn" href={q(monthKey(new Date().getFullYear(), new Date().getMonth() + 1), viewAll && pharmacy?.id)}>Текущ</Link>
-          <Link className="btn" href={q(shiftMonth(year, month, 1), viewAll && pharmacy?.id)}>Следващ ›</Link>
-          {viewAll && pharmacies.length > 1 && (
+          <Link className="btn" href={q(shiftMonth(year, month, -1), chooseAny && pharmacy?.id)}>‹ Предходен</Link>
+          <Link className="btn" href={q(monthKey(new Date().getFullYear(), new Date().getMonth() + 1), chooseAny && pharmacy?.id)}>Текущ</Link>
+          <Link className="btn" href={q(shiftMonth(year, month, 1), chooseAny && pharmacy?.id)}>Следващ ›</Link>
+          {chooseAny && pharmacies.length > 1 && (
             <form className="inline" action="/grafik">
               <input type="hidden" name="m" value={monthKey(year, month)} />
               <AutoSubmitSelect name="a" defaultValue={pharmacy?.id} aria-label="Аптека">
@@ -130,6 +140,7 @@ export default async function SchedulePage({ searchParams }) {
           canEdit={canEdit}
           currentUserId={user.id}
           pharmacyId={pharmacy.id}
+          pharmacyName={pharmacy.name}
           year={year}
           month={month}
           today={today}

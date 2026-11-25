@@ -18,9 +18,9 @@ export default function UserForm({ action, user = {}, perms = [], pharmacies, po
               ))}
             </select>
           </label>
-          <label>Аптека
+          <label title="Без аптека – служителят може да получава смени във всички аптеки">Аптека
             <select name="pharmacy_id" defaultValue={user.pharmacy_id || ''}>
-              <option value="">— без аптека —</option>
+              <option value="">— без аптека (всички аптеки) —</option>
               {pharmacies.map((p) => <option key={p.id} value={p.id}>{p.name}{!p.active ? ' (неактивна)' : ''}</option>)}
             </select>
           </label>

@@ -45,8 +45,11 @@ export async function setShift({ userId, date, shiftTypeId, pharmacyId }) {
     );
     const pharmacy = await nameOf('pharmacies', pharmacyId);
     if (old) {
-      await audit(editor, 'update', 'shift', old.id, `${worker}, ${fmtDate(date)}: смяна ${old.code} → ${type.code} (${pharmacy})`,
-        { 'Смяна': [`${old.code} – ${old.name}`, `${type.code} – ${type.name}`] });
+      const changes = {};
+      if (old.shift_type_id !== Number(shiftTypeId)) changes['Смяна'] = [`${old.code} – ${old.name}`, `${type.code} – ${type.name}`];
+      if (old.pharmacy_id !== Number(pharmacyId)) changes['Аптека'] = [await nameOf('pharmacies', old.pharmacy_id), pharmacy];
+      const moved = old.pharmacy_id !== Number(pharmacyId) ? ` – преместена от ${changes['Аптека'][0]}` : '';
+      await audit(editor, 'update', 'shift', old.id, `${worker}, ${fmtDate(date)}: смяна ${old.code} → ${type.code} (${pharmacy})${moved}`, changes);
     } else {
       await audit(editor, 'create', 'shift', res.insertId, `${worker}, ${fmtDate(date)}: добавена смяна ${type.code} (${type.name}), ${pharmacy}`);
     }
@@ -64,9 +67,9 @@ export async function copyPreviousMonth({ pharmacyId, year, month }) {
   const days = monthDays(year, month);
   const rows = await query(
     `SELECT s.user_id, DAY(s.work_date) d, s.shift_type_id FROM shifts s
-       JOIN users u ON u.id = s.user_id AND u.active = 1 AND u.pharmacy_id = ?
+       JOIN users u ON u.id = s.user_id AND u.active = 1
       WHERE s.pharmacy_id = ? AND s.work_date BETWEEN ? AND ?`,
-    [pharmacyId, pharmacyId, prevDays[0].date, prevDays.at(-1).date]
+    [pharmacyId, prevDays[0].date, prevDays.at(-1).date]
   );
   let n = 0;
   for (const r of rows) {
