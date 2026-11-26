@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Logo from './Logo';
@@ -7,14 +7,19 @@ import Logo from './Logo';
 // Заглавна лента: на широк екран менюто е в реда; на тесен – сгъва се зад бутон „☰“.
 export default function AppHeader({ main, admin, user, logout }) {
   const [open, setOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false); // падащото меню „Администрация“ (на компютър)
+  const adminRef = useRef(null);
   const path = usePathname();
-  useEffect(() => setOpen(false), [path]);
+  useEffect(() => { setOpen(false); setAdminOpen(false); }, [path]);
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    if (!open && !adminOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setAdminOpen(false); } };
+    const onClick = (e) => { if (adminRef.current && !adminRef.current.contains(e.target)) setAdminOpen(false); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+    document.addEventListener('pointerdown', onClick);
+    return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onClick); };
+  }, [open, adminOpen]);
+  const adminActive = admin.some((l) => path === l.href || path.startsWith(l.href + '/'));
 
   const link = (l) => {
     const active = path === l.href || path.startsWith(l.href + '/');
@@ -42,9 +47,18 @@ export default function AppHeader({ main, admin, user, logout }) {
       <nav id="main-nav" className="nav" aria-label="Основно меню">
         <div className="nav-group">{main.map(link)}</div>
         {admin.length > 0 && (
-          <div className="nav-group admin-group">
+          <div className="nav-group admin-group" ref={adminRef}>
             <span className="nav-title">Администрация</span>
-            {admin.map(link)}
+            <button
+              type="button"
+              className={`admin-toggle ${adminActive ? 'active' : ''}`}
+              aria-expanded={adminOpen}
+              aria-controls="admin-links"
+              onClick={() => setAdminOpen((o) => !o)}
+            >
+              Администрация <span aria-hidden="true" className="caret">▾</span>
+            </button>
+            <div id="admin-links" className={`admin-links ${adminOpen ? 'show' : ''}`}>{admin.map(link)}</div>
           </div>
         )}
       </nav>

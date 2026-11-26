@@ -1,6 +1,8 @@
 import { requireUser, can } from '@/lib/auth';
 import { logout } from '../login/actions';
 import AppHeader from '../components/AppHeader';
+import SessionTimer from '../components/SessionTimer';
+import { getSettings } from '@/lib/settings';
 
 export default async function AppLayout({ children }) {
   const user = await requireUser();
@@ -15,7 +17,9 @@ export default async function AppLayout({ children }) {
     can(user, 'pharmacies.manage') && { href: '/admin/dlazhnosti', label: 'Длъжности' },
     can(user, 'pharmacies.manage') && { href: '/admin/smeni', label: 'Типове смени' },
     can(user, 'audit.view') && { href: '/admin/zhurnal', label: 'Журнал' },
+    user.is_admin && { href: '/admin/nastroiki', label: 'Настройки' },
   ].filter(Boolean);
+  const settings = await getSettings();
   const initials = user.full_name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
   return (
@@ -27,6 +31,7 @@ export default async function AppLayout({ children }) {
         logout={logout}
       />
       <main className="content">{children}</main>
+      <SessionTimer timeout={settings.session_timeout_minutes * 60} warning={settings.session_warning_seconds} />
     </div>
   );
 }

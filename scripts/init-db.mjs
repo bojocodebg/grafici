@@ -117,5 +117,8 @@ if (uc === 0) {
   console.log('✔ Създаден администратор: admin / admin123 (сменете паролата след вход!)');
 }
 
+// Настройки по подразбиране (не презаписва вече зададени)
+await conn.query("INSERT IGNORE INTO settings (name, value) VALUES ('session_timeout_minutes', '30'), ('session_warning_seconds', '60')");
+
 await conn.end();
 console.log('Готово.');

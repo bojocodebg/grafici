@@ -124,3 +124,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
   KEY idx_audit_entity (entity, created_at),
   CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Системни настройки (ключ → стойност), редактират се от администратора
+CREATE TABLE IF NOT EXISTS settings (
+  name VARCHAR(60) PRIMARY KEY,
+  value VARCHAR(255) NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
