@@ -28,7 +28,8 @@ export default async function SettingsPage({ searchParams }) {
       <form action={updateSettings} className="card stack">
         <h2>Сесия и сигурност</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Ако потребителят не прави нищо (мишка, клавиатура, докосване) за зададеното време, системата го извежда автоматично.
+          Важи <b>само за служебния акаунт admin</b> (останалите потребители имат сесия от 12 часа от входа).
+          Ако не се прави нищо (мишка, клавиатура, докосване) за зададеното време, системата извежда admin автоматично.
           Малко преди това се показва предупреждение с обратно броене и бутон „Продължи работа“.
           Отворените раздели на един браузър се синхронизират – активност в единия удължава сесията и в другите.
         </p>
@@ -41,7 +42,7 @@ export default async function SettingsPage({ searchParams }) {
           <input name="session_warning_seconds" type="number" min={w.min} max={w.max} step="5" defaultValue={s.session_warning_seconds} required />
           <small className="muted">От {w.min} до {w.max} секунди.</small>
         </label>
-        <p className="muted small" style={{ marginTop: 0 }}>Промяната важи за всички потребители до около 15 секунди, без да е нужно да влизат отново.</p>
+        <p className="muted small" style={{ marginTop: 0 }}>Промяната важи до около 15 секунди, без да е нужно да се влиза отново.</p>
         <div><SubmitButton>Запази</SubmitButton></div>
       </form>
     </div>

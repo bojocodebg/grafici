@@ -3,6 +3,7 @@ import { logout } from '../login/actions';
 import AppHeader from '../components/AppHeader';
 import SessionTimer from '../components/SessionTimer';
 import { getSettings } from '@/lib/settings';
+import { TIMEOUT_USERNAME } from '@/lib/session';
 
 export default async function AppLayout({ children }) {
   const user = await requireUser();
@@ -31,7 +32,9 @@ export default async function AppLayout({ children }) {
         logout={logout}
       />
       <main className="content">{children}</main>
-      <SessionTimer timeout={settings.session_timeout_minutes * 60} warning={settings.session_warning_seconds} />
+      {user.username === TIMEOUT_USERNAME && (
+        <SessionTimer timeout={settings.session_timeout_minutes * 60} warning={settings.session_warning_seconds} />
+      )}
     </div>
   );
 }

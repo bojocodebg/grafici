@@ -14,6 +14,8 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
   const [local, setLocal] = useState({}); // оптимистични промени
   const [tip, setTip] = useState(null); // балон със забележки { x, y, notes, name, date }
   const hideTimer = useRef(null);
+  const [clearOpen, setClearOpen] = useState(false); // прозорец „напишете DELETE“
+  const [clearText, setClearText] = useState('');
   // Изглед: auto – таблица на широк екран, карти по дни на тесен; може да се избере ръчно
   const [view, setView] = useState('auto');
   useEffect(() => { try { const v = localStorage.getItem('grafik-view'); if (v) setView(v); } catch {} }, []);
@@ -124,7 +126,7 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
           }}>Копирай предх. месец</button>
           <button className="btn sm danger" disabled={pending} onClick={() => {
             if (!confirm('Да се изтрият ВСИЧКИ смени за този месец в тази аптека?')) return;
-            startTransition(async () => { await clearMonth({ pharmacyId, year, month }); setLocal({}); router.refresh(); });
+            setClearText(''); setClearOpen(true); // второ потвърждение – писане на DELETE
           }}>Изчисти месеца</button>
         </div>
       )}
@@ -346,6 +348,53 @@ export default function ScheduleGrid({ days, workers, shiftTypes, shiftMap, leav
               <Link href={`/zabelezhki#note-${n.id}`}>Към забележката →</Link>
             </div>
           ))}
+        </div>
+      )}
+
+      {clearOpen && (
+        <div className="modal-bg" onClick={() => setClearOpen(false)}>
+          <form
+            className="modal danger-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="clr-title"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.key === 'Escape' && setClearOpen(false)}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (clearText !== 'DELETE') return;
+              setClearOpen(false);
+              startTransition(async () => {
+                const r = await clearMonth({ pharmacyId, year, month, confirmText: clearText });
+                if (r?.error) alert(r.error);
+                setLocal({});
+                router.refresh();
+              });
+            }}
+          >
+            <h3 id="clr-title">Изчистване на месеца</h3>
+            <p>
+              Ще бъдат изтрити <b>всички смени</b> за {String(month).padStart(2, '0')}.{year} в <b>{pharmacyName}</b>. Действието е необратимо.
+            </p>
+            <label>
+              <span>За потвърждение напишете <b>DELETE</b> с главни букви:</span>
+              <input
+                value={clearText}
+                onChange={(e) => setClearText(e.target.value)}
+                autoFocus
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                placeholder="DELETE"
+                aria-invalid={clearText !== '' && clearText !== 'DELETE'}
+              />
+            </label>
+            {clearText !== '' && clearText !== 'DELETE' && <small className="err">Трябва да е точно DELETE (главни букви).</small>}
+            <div className="inline">
+              <button type="submit" className="btn danger-solid" disabled={clearText !== 'DELETE'}>Изтрий всички смени</button>
+              <button type="button" className="btn" onClick={() => setClearOpen(false)}>Отказ</button>
+            </div>
+          </form>
         </div>
       )}
 

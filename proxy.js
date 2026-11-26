@@ -23,10 +23,35 @@ async function logTimeout(uid, req, minutes) {
   }
 }
 
+// Последно избраните месец и аптека в графика се помнят в бисквитки (записва ги самата
+// страница „График“ – components/RememberGrafik.js), за да не се връща графикът на текущия
+// месец след друга операция (меню, вход, забележки и т.н.). Тук само пренасочваме към тях.
+const GRAFIK_M = 'puls_grafik_m';
+const GRAFIK_A = 'puls_grafik_a';
+const M_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const A_RE = /^\d{1,9}$/;
+
+function grafikMemory(req) {
+  const url = req.nextUrl;
+  const m = url.searchParams.get('m');
+  const a = url.searchParams.get('a');
+  const savedM = req.cookies.get(GRAFIK_M)?.value;
+  const savedA = req.cookies.get(GRAFIK_A)?.value;
+  // Без избран месец в адреса → пренасочване към последно избрания
+  if (!m && savedM && M_RE.test(savedM)) {
+    const to = url.clone();
+    to.searchParams.set('m', savedM);
+    if (!a && savedA && A_RE.test(savedA)) to.searchParams.set('a', savedA);
+    return to;
+  }
+  return null;
+}
+
 // Next.js 16: "proxy" замества "middleware".
 // - пренасочва неудостоверени потребители към /login
-// - автоматичен изход след неактивност (настройва се от администратора)
-// - „плъзгаща“ сесия: при активност бисквитката се подновява (най-много веднъж в минута)
+// - автоматичен изход след неактивност – само за служебния акаунт admin (настройва се от него)
+// - „плъзгаща“ сесия за admin: при активност бисквитката се подновява (най-много веднъж в минута)
+// - пренасочва /grafik без месец към последно избрания месец/аптека
 export async function proxy(req) {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith('/api/');
@@ -35,7 +60,8 @@ export async function proxy(req) {
   const limit = minutes * 60 + SERVER_GRACE_SECONDS;
   const now = nowSec();
   const last = Number(session?.la ?? session?.iat ?? 0);
-  const expired = !!session && now - last > limit;
+  const timed = !!session?.to; // автоматичният изход важи само за admin
+  const expired = timed && now - last > limit;
 
   if (pathname.startsWith('/login')) {
     if (session && !expired) return NextResponse.redirect(new URL('/grafik', req.url));
@@ -53,9 +79,13 @@ export async function proxy(req) {
     return res;
   }
 
+  if (pathname === '/grafik') {
+    const to = grafikMemory(req);
+    if (to) return NextResponse.redirect(to);
+  }
   const res = NextResponse.next();
-  if (now - last >= 60 || pathname === '/api/session/ping') {
-    res.cookies.set(SESSION_COOKIE, await signSession({ uid: session.uid, la: now }), cookieOptions(limit));
+  if (timed && (now - last >= 60 || pathname === '/api/session/ping')) {
+    res.cookies.set(SESSION_COOKIE, await signSession({ uid: session.uid, la: now, to: true }), cookieOptions(limit));
   }
   return res;
 }

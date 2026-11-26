@@ -5,6 +5,7 @@ import { MONTHS, monthDays, parseMonth, shiftMonth, monthKey, fmtTime, todayStr 
 import ScheduleGrid from './ScheduleGrid';
 import PrintButton from './PrintButton';
 import AutoSubmitSelect from '@/app/components/AutoSubmitSelect';
+import RememberGrafik from '@/app/components/RememberGrafik';
 
 export const metadata = { title: 'График – Пулс' };
 
@@ -105,6 +106,7 @@ export default async function SchedulePage({ searchParams }) {
 
   return (
     <div className="stack-lg">
+      <RememberGrafik m={monthKey(year, month)} a={pharmacy && chooseAny ? String(pharmacy.id) : null} />
       <div className="page-head">
         <div>
           <h1>График за {MONTHS[month - 1].toLowerCase()} {year}</h1>

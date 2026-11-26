@@ -560,3 +560,11 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .session-modal p { margin: 0; color: var(--muted); }
 .session-count { font-size: clamp(2.2rem, 1.8rem + 2vw, 3rem); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--warn); line-height: 1.1; }
 .session-modal .inline { justify-content: center; }
+
+/* Прозорец за опасно действие (напишете DELETE) */
+.danger-modal { border-top: 4px solid var(--danger); }
+.danger-modal p { margin: 0; }
+.danger-modal input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.08em; }
+.danger-modal .err { color: var(--danger); }
+.btn.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger-solid:hover:not(:disabled) { background: #a51f1f; }

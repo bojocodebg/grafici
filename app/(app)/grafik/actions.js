@@ -95,8 +95,10 @@ export async function copyPreviousMonth({ pharmacyId, year, month }) {
   return { copied: n };
 }
 
-export async function clearMonth({ pharmacyId, year, month }) {
+export async function clearMonth({ pharmacyId, year, month, confirmText }) {
   const editor = await requirePermission('schedule.edit');
+  // допълнителна защита: изисква се написано DELETE (главни букви)
+  if (confirmText !== 'DELETE') return { error: 'За изчистване на месеца трябва да напишете DELETE с главни букви.' };
   const days = monthDays(year, month);
   const res = await query('DELETE FROM shifts WHERE pharmacy_id = ? AND work_date BETWEEN ? AND ?', [pharmacyId, days[0].date, days.at(-1).date]);
   const pharmacy = await nameOf('pharmacies', pharmacyId);

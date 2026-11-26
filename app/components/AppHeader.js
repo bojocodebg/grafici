@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Logo from './Logo';
+import { grafikHref } from './RememberGrafik';
 
 // Заглавна лента: на широк екран менюто е в реда; на тесен – сгъва се зад бутон „☰“.
 export default function AppHeader({ main, admin, user, logout }) {
@@ -19,17 +20,29 @@ export default function AppHeader({ main, admin, user, logout }) {
     document.addEventListener('pointerdown', onClick);
     return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onClick); };
   }, [open, adminOpen]);
+  // „График“ води към последно избрания месец/аптека
+  const router = useRouter();
+  const [gHref, setGHref] = useState('/grafik');
+  useEffect(() => { setGHref(grafikHref()); }, [path]);
+  // при натискане четем запомнения месец наново (може да е сменен със „Следващ“ на същата страница)
+  const goGrafik = (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    setOpen(false);
+    router.push(grafikHref());
+  };
   const adminActive = admin.some((l) => path === l.href || path.startsWith(l.href + '/'));
 
   const link = (l) => {
     const active = path === l.href || path.startsWith(l.href + '/');
-    return <Link key={l.href} href={l.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>{l.label}</Link>;
+    const isG = l.href === '/grafik';
+    return <Link key={l.href} href={isG ? gHref : l.href} onClick={isG ? goGrafik : undefined} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>{l.label}</Link>;
   };
 
   return (
     <header className={`topbar no-print ${open ? 'open' : ''}`}>
       <div className="topbar-row">
-        <Link href="/grafik" className="brand">
+        <Link href={gHref} onClick={goGrafik} className="brand">
           <Logo size={30} />
           <span>Пулс <small>графици</small></span>
         </Link>

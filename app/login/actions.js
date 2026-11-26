@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
-import { SESSION_COOKIE, signSession, cookieOptions, nowSec } from '@/lib/session';
+import { SESSION_COOKIE, signSession, cookieOptions, nowSec, TIMEOUT_USERNAME, REGULAR_SESSION_SECONDS } from '@/lib/session';
 import { getSettings, SERVER_GRACE_SECONDS } from '@/lib/settings';
 import { getCurrentUser } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -25,11 +25,16 @@ export async function login(prevState, formData) {
     return { error: 'Профилът е деактивиран. Свържете се с администратор.', username };
   }
 
+  const to = user.username === TIMEOUT_USERNAME; // автоматичен изход само за служебния акаунт admin
   const { session_timeout_minutes: minutes } = await getSettings();
-  const token = await signSession({ uid: user.id, la: nowSec() });
-  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(minutes * 60 + SERVER_GRACE_SECONDS));
+  const token = await signSession({ uid: user.id, la: nowSec(), ...(to ? { to: true } : {}) });
+  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(to ? minutes * 60 + SERVER_GRACE_SECONDS : REGULAR_SESSION_SECONDS));
   await audit(user, 'login', 'auth', user.id, 'Успешен вход в системата');
-  redirect('/grafik');
+  // към последно избрания месец/аптека в графика (ако има запомнени)
+  const jar = await cookies();
+  const m = jar.get('puls_grafik_m')?.value, a = jar.get('puls_grafik_a')?.value;
+  const okM = /^\d{4}-(0[1-9]|1[0-2])$/.test(m || ''), okA = /^\d{1,9}$/.test(a || '');
+  redirect(okM ? `/grafik?m=${m}${okA ? `&a=${a}` : ''}` : '/grafik');
 }
 
 export async function logout() {
