@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SESSION_COOKIE, verifySession, signSession, cookieOptions, nowSec } from './lib/session';
+import { SESSION_COOKIE, verifySession, signSession, cookieOptions, nowSec, REGULAR_COOKIE_SECONDS } from './lib/session';
 import { getSettings, SERVER_GRACE_SECONDS } from './lib/settings';
 import { query } from './lib/db';
 
@@ -49,11 +49,14 @@ function grafikMemory(req) {
 
 // Next.js 16: "proxy" замества "middleware".
 // - пренасочва неудостоверени потребители към /login
-// - автоматичен изход след неактивност – само за служебния акаунт admin (настройва се от него)
+// - автоматичен изход след неактивност – само за служебния акаунт admin (настройва се от него);
+//   останалите потребители нямат ограничение във времето
 // - „плъзгаща“ сесия за admin: при активност бисквитката се подновява (най-много веднъж в минута)
 // - пренасочва /grafik без месец към последно избрания месец/аптека
 export async function proxy(req) {
   const { pathname } = req.nextUrl;
+  // прекратяване на невалидна сесия – винаги разрешено
+  if (pathname === '/api/session/end') return NextResponse.next();
   const isApi = pathname.startsWith('/api/');
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const { session_timeout_minutes: minutes } = await getSettings();
@@ -85,7 +88,10 @@ export async function proxy(req) {
   }
   const res = NextResponse.next();
   if (timed && (now - last >= 60 || pathname === '/api/session/ping')) {
-    res.cookies.set(SESSION_COOKIE, await signSession({ uid: session.uid, la: now, to: true }), cookieOptions(limit));
+    res.cookies.set(SESSION_COOKIE, await signSession({ uid: session.uid, la: now, sv: session.sv ?? 0, to: true }), cookieOptions(limit));
+  } else if (!timed && now - last >= 24 * 60 * 60) {
+    // обикновените потребители нямат срок – подновяваме бисквитката веднъж на ден, за да не изтече
+    res.cookies.set(SESSION_COOKIE, await signSession({ uid: session.uid, la: now, sv: session.sv ?? 0 }), cookieOptions(REGULAR_COOKIE_SECONDS));
   }
   return res;
 }

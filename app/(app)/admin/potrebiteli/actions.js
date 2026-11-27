@@ -118,6 +118,10 @@ export async function updateUser(id, formData) {
       [f.username, f.full_name, f.position_id, f.phone, f.email, f.pharmacy_id, f.is_admin, f.show_in_schedule, f.sort_order, f.active, id]
     );
     if (f.password) await conn.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(f.password, 10), id]);
+    // нова парола или деактивиране → всички текущи сесии на потребителя спират
+    if ((f.password || (before.u.active && !f.active)) && id !== me.id) {
+      await conn.query('UPDATE users SET session_version = session_version + 1 WHERE id = ?', [id]);
+    }
     await savePermissions(conn, id, f.permissions);
     await conn.commit();
   } catch (e) {
@@ -127,7 +131,7 @@ export async function updateUser(id, formData) {
     conn.release();
   }
   const changes = diff(await snapshot(before.u, before.perms), await snapshot(f, f.permissions), FIELDS);
-  if (f.password) changes['Парола'] = ['••••••', 'сменена от администратор'];
+  if (f.password) changes['Парола'] = ['••••••', 'сменена от администратор (текущите сесии са прекратени)'];
   if (Object.keys(changes).length) await audit(me, 'update', 'user', id, `Редактиран потребител „${f.full_name}“ (${f.username})`, changes);
   revalidatePath('/admin/potrebiteli');
   go(path, 'ok', 'Промените са записани.');

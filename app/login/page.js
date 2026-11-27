@@ -15,6 +15,11 @@ export default async function LoginPage({ searchParams }) {
             <p className="muted">Система за работни графици</p>
           </div>
         </div>
+        {sp?.ended && (
+          <div className="alert" role="status" style={{ marginBottom: '1rem' }}>
+            Сесията беше прекратена (сменена парола или деактивиран профил). Моля, влезте отново.
+          </div>
+        )}
         {sp?.expired && (
           <div className="alert" role="status" style={{ marginBottom: '1rem' }}>
             Сесията изтече поради неактивност. Моля, влезте отново.

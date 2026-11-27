@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   is_admin TINYINT(1) NOT NULL DEFAULT 0,
   show_in_schedule TINYINT(1) NOT NULL DEFAULT 1, -- 0 = служебен акаунт, не се показва в графиците
   sort_order INT NOT NULL DEFAULT 0, -- ред в графика (по-малкото число е по-напред)
+  session_version INT NOT NULL DEFAULT 0, -- увеличава се при смяна на парола → старите сесии спират
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_users_pharmacy FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE SET NULL,

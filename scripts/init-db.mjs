@@ -68,6 +68,10 @@ if (!(await hasCol('users', 'sort_order'))) {
   for (const [i, r] of rows.entries()) await conn.query('UPDATE users SET sort_order = ? WHERE id = ?', [(i + 1) * 10, r.id]);
   console.log('✔ Миграция: добавен ред (sort_order) на потребителите');
 }
+if (!(await hasCol('users', 'session_version'))) {
+  await conn.query('ALTER TABLE users ADD COLUMN session_version INT NOT NULL DEFAULT 0 AFTER sort_order');
+  console.log('✔ Миграция: прекратяване на сесиите при смяна на парола');
+}
 if (await hasCol('users', 'position')) {
   // Старите текстови длъжности стават записи в таблицата "positions"
   await conn.query("INSERT IGNORE INTO positions (name) SELECT DISTINCT TRIM(position) FROM users WHERE position IS NOT NULL AND TRIM(position) <> ''");

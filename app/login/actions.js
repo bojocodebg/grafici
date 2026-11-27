@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
-import { SESSION_COOKIE, signSession, cookieOptions, nowSec, TIMEOUT_USERNAME, REGULAR_SESSION_SECONDS } from '@/lib/session';
+import { SESSION_COOKIE, signSession, cookieOptions, nowSec, TIMEOUT_USERNAME, REGULAR_COOKIE_SECONDS } from '@/lib/session';
 import { getSettings, SERVER_GRACE_SECONDS } from '@/lib/settings';
 import { getCurrentUser } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -13,7 +13,7 @@ export async function login(prevState, formData) {
   const password = String(formData.get('password') || '');
   if (!username || !password) return { error: 'Въведете потребителско име и парола.', username };
 
-  const rows = await query('SELECT id, username, full_name, password_hash, active FROM users WHERE username = ?', [username]);
+  const rows = await query('SELECT id, username, full_name, password_hash, active, session_version FROM users WHERE username = ?', [username]);
   const user = rows[0];
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     await audit(user ? user : { username: username.slice(0, 60) }, 'login_failed', 'auth', user?.id,
@@ -27,8 +27,8 @@ export async function login(prevState, formData) {
 
   const to = user.username === TIMEOUT_USERNAME; // автоматичен изход само за служебния акаунт admin
   const { session_timeout_minutes: minutes } = await getSettings();
-  const token = await signSession({ uid: user.id, la: nowSec(), ...(to ? { to: true } : {}) });
-  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(to ? minutes * 60 + SERVER_GRACE_SECONDS : REGULAR_SESSION_SECONDS));
+  const token = await signSession({ uid: user.id, la: nowSec(), sv: user.session_version, ...(to ? { to: true } : {}) });
+  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(to ? minutes * 60 + SERVER_GRACE_SECONDS : REGULAR_COOKIE_SECONDS));
   await audit(user, 'login', 'auth', user.id, 'Успешен вход в системата');
   // към последно избрания месец/аптека в графика (ако има запомнени)
   const jar = await cookies();
