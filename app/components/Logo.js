@@ -1,9 +1,19 @@
-export default function Logo({ size = 32 }) {
+// Лога на Денонощни аптеки „Пулс“ (от pulsapteka.com), в /public
+//  - FullLogo: сърцето + „Денонощни аптеки •Пулс•“
+//  - HeartLogo: само сърцето (когато е нужна картинка без текст)
+export function FullLogo({ height = 36, className = '' }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-      <rect x="2" y="2" width="44" height="44" rx="10" fill="var(--brand)" />
-      <path d="M19 10h10v9h9v10h-9v9H19v-9h-9V19h9z" fill="#fff" opacity=".95" />
-      <path d="M8 26h8l3-6 4 12 3-8 2 2h12" stroke="var(--brand)" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <img
+      src="/logo-puls-full.png"
+      alt="Денонощни аптеки „Пулс“"
+      width={Math.round((height * 800) / 207)}
+      height={height}
+      className={`logo-full ${className}`}
+      decoding="async"
+    />
   );
+}
+
+export default function HeartLogo({ size = 32, className = '' }) {
+  return <img src="/logo-heart.png" alt="" aria-hidden="true" width={size} height={size} className={`logo-heart ${className}`} decoding="async" />;
 }

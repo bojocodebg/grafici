@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import Logo from './Logo';
+import { FullLogo } from './Logo';
 import { grafikHref } from './RememberGrafik';
 
 // Заглавна лента: на широк екран менюто е в реда; на тесен – сгъва се зад бутон „☰“.
@@ -43,8 +43,8 @@ export default function AppHeader({ main, admin, user, logout }) {
     <header className={`topbar no-print ${open ? 'open' : ''}`}>
       <div className="topbar-row">
         <Link href={gHref} onClick={goGrafik} className="brand">
-          <Logo size={30} />
-          <span>Пулс <small>графици</small></span>
+          <FullLogo height={38} />
+          <span className="brand-sub">графици</span>
         </Link>
         <button
           type="button"

@@ -102,9 +102,9 @@ const [[{ c: sc }]] = await conn.query('SELECT COUNT(*) c FROM shift_types');
 if (sc === 0) {
   await conn.query(
     `INSERT INTO shift_types (code, name, start_time, end_time, hours, color, sort_order) VALUES
-     ('Д', 'Дневна смяна', '08:00', '20:00', 12, '#4caf50', 1),
+     ('Д', 'Дневна смяна', '08:00', '20:00', 12, '#c51f24', 1),
      ('Н', 'Нощна смяна', '20:00', '08:00', 12, '#3f51b5', 2),
-     ('С', 'Сутрешна смяна', '08:00', '16:00', 8, '#8bc34a', 3),
+     ('С', 'Сутрешна смяна', '08:00', '16:00', 8, '#d9576d', 3),
      ('В', 'Вечерна смяна', '14:00', '22:00', 8, '#ff9800', 4),
      ('П', 'Почивка', NULL, NULL, 0, '#9e9e9e', 5)`
   );
@@ -119,6 +119,13 @@ if (uc === 0) {
     ['admin', hash, 'Администратор']
   );
   console.log('✔ Създаден администратор: admin / admin123 (сменете паролата след вход!)');
+}
+
+// Фирмени цветове „Пулс“: старите зелени цветове по подразбиране на смените → червени оттенъци
+{
+  const [r1] = await conn.query("UPDATE shift_types SET color = '#c51f24' WHERE LOWER(color) = '#4caf50'");
+  const [r2] = await conn.query("UPDATE shift_types SET color = '#d9576d' WHERE LOWER(color) = '#8bc34a'");
+  if (r1.affectedRows + r2.affectedRows) console.log(`✔ Миграция: зелените цветове на ${r1.affectedRows + r2.affectedRows} типа смени са сменени с червени`);
 }
 
 // Настройки по подразбиране (не презаписва вече зададени)

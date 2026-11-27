@@ -15,7 +15,7 @@ const read = (fd) => ({
   end_time: String(fd.get('end_time') || '') || null,
   hours: Math.max(0, Math.min(24, Number(String(fd.get('hours') || '0').replace(',', '.')) || 0)),
   sort_order: Math.trunc(Number(fd.get('sort_order'))) || 0,
-  color: /^#[0-9a-fA-F]{6}$/.test(String(fd.get('color'))) ? String(fd.get('color')) : '#4caf50',
+  color: /^#[0-9a-fA-F]{6}$/.test(String(fd.get('color'))) ? String(fd.get('color')) : '#c51f24',
   active: fd.get('active') ? 1 : 0,
 });
 

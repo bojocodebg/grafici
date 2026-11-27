@@ -15,7 +15,7 @@ function Fields({ t = {}, nextOrder = 0 }) {
       <label className="tiny">от<input type="time" name="start_time" defaultValue={fmtTime(t.start_time)} /></label>
       <label className="tiny">до<input type="time" name="end_time" defaultValue={fmtTime(t.end_time)} /></label>
       <label className="tiny">часа<input name="hours" type="number" step="0.5" min="0" max="24" defaultValue={t.hours != null ? Number(t.hours) : 8} className="w-num" /></label>
-      <input type="color" name="color" defaultValue={t.color || '#4caf50'} />
+      <input type="color" name="color" defaultValue={t.color || '#c51f24'} />
     </>
   );
 }
